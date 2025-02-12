@@ -63,7 +63,7 @@ void exploreToCenter () {
         char d = curr_dir, w = 0;
         do {
             maze [curr_r][curr_c][d] = walls [w];
-            d ++;
+            d = (d + 1) % 4;
             w ++;
         } while (d != curr_dir);
 
