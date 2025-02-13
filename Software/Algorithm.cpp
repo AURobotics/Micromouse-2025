@@ -8,6 +8,7 @@ char curr_dir = 0; // 0--> North, 1 --> East, 2 --> South, 3 --> West
 char curr_r = 0, curr_c = 0;
 
 bool maze [MAX_H][MAX_W][5] = {0}; // represents the maze, first 4 bits represent the walls N E S W, the last bit represents the visiting status
+//leh mn3melsh byte/char maze[MAX_H][MAX_W] ?
 
 short dis [MAX_H][MAX_W] = {
     {16, 15, 14, 13, 12, 11, 10, 9, 8, 8, 9, 10, 11, 12, 13, 14, 15, 16},
@@ -47,7 +48,36 @@ void flood () {
 }
 
 void moveTo (char r, char c) {
-    
+    // get where I want to move relative to abolute direction (y3ny lw el robot bases north) ana lesa m2alef el term dah
+    int dir;
+    if(c < curr_c) dir = 0;
+    if(c > curr_c) dir = 2;
+    if(r < curr_r) dir = 3;
+    if(r > curr_r) dir = 1;
+
+    // compare the movement direction to the current directoin to know how should I turn 
+
+    if(dir - curr_dir == -1)// turn left
+    {
+        API::turnLeft();
+        API::moveForward();
+    } 
+    else if(dir - curr_dir == 1 ) // turn right 
+    {
+        API::turnRight();
+        API::moveForward();
+    }
+    else if(dir == curr_dir) // move forward 
+    {
+        API::moveForward();
+    }
+    else // turn 180
+    {
+        API::turnRight();
+        API::turnRight();
+        API::moveForward();
+    }
+
 }
 
 void exploreToCenter () {
