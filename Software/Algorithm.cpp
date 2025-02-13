@@ -1,8 +1,81 @@
 #include <iostream>
-#include "API.h" // micromouse simulator api
+#include <cstdlib>
+// #include "API.h" // micromouse simulator api
 
 #define MAX_H 18
 #define MAX_W 18
+// queue implementation
+
+typedef struct
+{
+    int head,tail,size,counter;
+    int*items;
+}queue;
+queue *initialise(int size)
+{
+   queue*q=(queue*)malloc(sizeof(queue));
+   q->head=0;
+   q->tail=0;
+   q->size=size;
+   q->counter=0;
+   q->items=(int*)malloc(size*sizeof(int));
+   return(q);
+}
+int isfull(queue*);
+int isempty(queue*);
+void enqueue(queue*q,int value)
+{
+    if(!isfull(q))
+    {
+        q->items[q->tail]=value;
+        q->tail=(q->tail+1)%q->size;
+        q->counter++;
+    }
+}
+int dequeue(queue*q)
+{
+    if(!isempty(q))
+    {
+        int result;
+        result=q->items[q->head];
+        q->head=(q->head+1)%q->size;
+        q->counter--;
+        return result;
+    }
+}
+int isfull(queue*q)
+{
+    if(q->counter==q->size)
+        return(1);
+    else
+        return(0);
+}
+int isempty(queue*q)
+{
+    if(q->counter==0)
+        return(1);
+    else
+        return(0);
+}
+
+void insert(queue*q,int value,int index)
+{
+    if(isfull(q))
+        q->size++;
+    int size=q->counter+1;
+    int copy[size];
+    for(int i=0;i<size;i++)
+    {
+        if(i!=index)
+            copy[i]=dequeue(q);
+        else
+            copy[i]=value;
+    }
+    for(int j=0;j<size;j++)
+        enqueue(q,copy[j]);
+
+}
+//end of queue implementation
 
 char curr_dir = 0; // 0--> North, 1 --> East, 2 --> South, 3 --> West
 char curr_r = 0, curr_c = 0;
