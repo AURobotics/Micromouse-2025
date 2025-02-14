@@ -44,7 +44,7 @@ bool isAccessible (char dir) {
 }
 
 void flood () {
-
+    
 }
 
 void moveTo (char r, char c) {
@@ -61,11 +61,13 @@ void moveTo (char r, char c) {
     {
         API::turnLeft();
         API::moveForward();
+        curr_dir += 3; // b3mel +3 msh -1 3shan el negative numbers don't work/work differently fel mod 
     } 
     else if(dir - curr_dir == 1 ) // turn right 
-    {
+    {   
         API::turnRight();
         API::moveForward();
+        curr_dir++;
     }
     else if(dir == curr_dir) // move forward 
     {
@@ -76,7 +78,12 @@ void moveTo (char r, char c) {
         API::turnRight();
         API::turnRight();
         API::moveForward();
+        curr_dir += 2;
     }
+
+    curr_dir %= 4;
+    curr_c = c;
+    curr_r = r;
 
 }
 
