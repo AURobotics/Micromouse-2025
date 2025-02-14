@@ -118,23 +118,23 @@ bool isAccessible (char dir) {
 queue*c_q=initialise(MAX_H); //queue initialisation for storing row and coloumn
 queue*r_q=initialise(MAX_W);
 void flood () {
-    for(int i=0;i<MAX_W;i++){ //initialize all cells with -1
-        for(int j=0;j<MAX_H;j++){
+    for(char i=0;i<MAX_W;i++){ //initialize all cells with -1
+        for(char j=0;j<MAX_H;j++){
             dis[i][j]=-1;
         }
     }
-    for(int x=3;x<5;x++){ //change middle cells with 0
-        for(int w=3;w<5;w++){
+    for(char x=MAX_W/2;x<MAX_W/2+2;x++){ //change middle cells with 0
+        for(char w=MAX_H/2;w<MAX_H/2+2;w++){
            dis[x][w]=0; 
+           enqueue(r_q,x);
+           enqueue(c_q,w);
         }
     }
-    enqueue(r_q,3);
-    enqueue(c_q,3);
     while (! isempty (c_q) && ! isempty (r_q)) {
-        int r=dequeue (r_q);
-        int c=dequeue (c_q);
+        char r=dequeue (r_q);
+        char c=dequeue (c_q);
         for (int i = 0; i < 4; i ++) {
-            if (! maze [r][c][i]&&dis [r + r_mov [i]][c + c_mov [i]]==-1) {
+            if (isAccessible(r,c)&&isValid(r,c)&&dis [r + r_mov [i]][c + c_mov [i]]==-1) {
                 dis [r + r_mov [i]][c + c_mov [i]] = dis [r][c] + 1;
                 enqueue (r_q,r + r_mov [i]);
                 enqueue (c_q,c + c_mov [i]);
