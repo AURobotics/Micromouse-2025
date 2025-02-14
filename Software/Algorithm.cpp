@@ -40,7 +40,7 @@ bool isValid (char r, char c) {
 }
 
 bool isAccessible (char dir) {
-    return ! maze [curr_r][curr_c];
+    return ! maze [curr_r][curr_c][dir];
 }
 
 void flood () {
