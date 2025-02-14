@@ -7,22 +7,20 @@
 // queue implementation
 typedef struct
 {
-    int head,tail,size,counter;
-    int*items;
+    short head,tail,size,counter;
+    char*items;
 }queue;
-queue *initialise(int size)
+queue *initialise(short size)
 {
    queue*q=(queue*)malloc(sizeof(queue));
    q->head=0;
    q->tail=0;
    q->size=size;
    q->counter=0;
-   q->items=(int*)malloc(size*sizeof(int));
+   q->items=(char*)malloc(size*sizeof(char));
    return(q);
 }
-int isfull(queue*);
-int isempty(queue*);
-void enqueue(queue*q,int value)
+void enqueue(queue*q, char value)
 {
     if(!isfull(q))
     {
@@ -31,48 +29,30 @@ void enqueue(queue*q,int value)
         q->counter++;
     }
 }
-int dequeue(queue*q)
+char dequeue(queue*q)
 {
     if(!isempty(q))
     {
-        int result;
+        char result;
         result=q->items[q->head];
         q->head=(q->head+1)%q->size;
         q->counter--;
         return result;
     }
 }
-int isfull(queue*q)
+bool isfull(queue*q)
 {
     if(q->counter==q->size)
         return(1);
     else
         return(0);
 }
-int isempty(queue*q)
+bool isempty(queue*q)
 {
     if(q->counter==0)
         return(1);
     else
         return(0);
-}
-
-void insert(queue*q,int value,int index)
-{
-    if(isfull(q))
-        q->size++;
-    int size=q->counter+1;
-    int copy[size];
-    for(int i=0;i<size;i++)
-    {
-        if(i!=index)
-            copy[i]=dequeue(q);
-        else
-            copy[i]=value;
-    }
-    for(int j=0;j<size;j++)
-        enqueue(q,copy[j]);
-
 }
 //end of queue implementation
 
@@ -123,8 +103,8 @@ void flood () {
             dis[i][j]=-1;
         }
     }
-    for(char x=MAX_W/2;x<MAX_W/2+2;x++){ //change middle cells with 0
-        for(char w=MAX_H/2;w<MAX_H/2+2;w++){
+    for(char x=MAX_W/2 - 1;x<MAX_W/2+1;x++){ //change middle cells with 0
+        for(char w=MAX_H/2 - 1;w<MAX_H/2+1;w++){
            dis[x][w]=0; 
            enqueue(r_q,x);
            enqueue(c_q,w);
@@ -134,7 +114,7 @@ void flood () {
         char r=dequeue (r_q);
         char c=dequeue (c_q);
         for (int i = 0; i < 4; i ++) {
-            if (isAccessible(r,c)&&isValid(r,c)&&dis [r + r_mov [i]][c + c_mov [i]]==-1) {
+            if (isAccessible(i)&&isValid(r,c)&&dis [r + r_mov [i]][c + c_mov [i]]==-1) {
                 dis [r + r_mov [i]][c + c_mov [i]] = dis [r][c] + 1;
                 enqueue (r_q,r + r_mov [i]);
                 enqueue (c_q,c + c_mov [i]);
