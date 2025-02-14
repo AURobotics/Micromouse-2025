@@ -5,7 +5,6 @@
 #define MAX_H 18
 #define MAX_W 18
 // queue implementation
-
 typedef struct
 {
     int head,tail,size,counter;
@@ -80,6 +79,7 @@ void insert(queue*q,int value,int index)
 char curr_dir = 0; // 0--> North, 1 --> East, 2 --> South, 3 --> West
 char curr_r = 0, curr_c = 0;
 
+
 bool maze [MAX_H][MAX_W][5] = {0}; // represents the maze, first 4 bits represent the walls N E S W, the last bit represents the visiting status
 //leh mn3melsh byte/char maze[MAX_H][MAX_W] ?
 
@@ -115,9 +115,32 @@ bool isValid (char r, char c) {
 bool isAccessible (char dir) {
     return ! maze [curr_r][curr_c];
 }
-
+queue*c_q=initialise(MAX_H); //queue initialisation for storing row and coloumn
+queue*r_q=initialise(MAX_W);
 void flood () {
-
+    for(int i=0;i<MAX_W;i++){ //initialize all cells with -1
+        for(int j=0;j<MAX_H;j++){
+            dis[i][j]=-1;
+        }
+    }
+    for(int x=3;x<5;x++){ //change middle cells with 0
+        for(int w=3;w<5;w++){
+           dis[x][w]=0; 
+        }
+    }
+    enqueue(r_q,3);
+    enqueue(c_q,3);
+    while (! isempty (c_q) && ! isempty (r_q)) {
+        int r=dequeue (r_q);
+        int c=dequeue (c_q);
+        for (int i = 0; i < 4; i ++) {
+            if (! maze [r][c][i]&&dis [r + r_mov [i]][c + c_mov [i]]==-1) {
+                dis [r + r_mov [i]][c + c_mov [i]] = dis [r][c] + 1;
+                enqueue (r_q,r + r_mov [i]);
+                enqueue (c_q,c + c_mov [i]);
+            }
+        }
+    }
 }
 
 void moveTo (char r, char c) {
