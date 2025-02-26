@@ -140,6 +140,7 @@ bool isValid (char r, char c) {
     return ((r >= 0) && (r < MAX_H)) && ((c >= 0) && (c < MAX_W));
 }
 
+
 bool isAccessible (char r, char c,char dir) {
     return ! (maze [r][c][dir] || maze[r+r_mov[dir]][c + c_mov[dir]][(dir+2)%4]);
 }
@@ -192,6 +193,7 @@ void moveTo (char r, char c) {
         API::moveForward();
         curr_dir += 3; // b3mel +3 msh -1 3shan el negative numbers don't work/work differently fel mod 
     } 
+
     else if(dir - curr_dir == 1 ||dir - curr_dir == -3) // turn right 
     {   
         API::turnRight();
