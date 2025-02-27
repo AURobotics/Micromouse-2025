@@ -143,8 +143,8 @@ bool isValid (char r, char c) {
 bool isAccessible (char r, char c,char dir) {
     return ! (maze [r][c][dir] || maze[r+r_mov[dir]][c + c_mov[dir]][(dir+2)%4]);
 }
-queue*c_q=initialise(MAX_H); //queue initialisation for storing row and coloumn
-queue*r_q=initialise(MAX_W);
+queue*c_q=initialise(MAX_H * MAX_W); //queue initialisation for storing row and coloumn
+queue*r_q=initialise(MAX_H* MAX_W);
 void flood () {
     for(char i=0;i<MAX_W;i++){ //initialize all cells with -1
         for(char j=0;j<MAX_H;j++){
