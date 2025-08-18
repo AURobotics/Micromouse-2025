@@ -195,7 +195,7 @@ void moveTo (char r, char c) {
     {
         turnLeft();
         moveForward();
-        curr_dir += 3; // b3mel +3 msh -1 3shan el negative numbers don't work/work differently fel mod 
+        curr_dir += 3; // b3mel +3 msh -1 because el negative numbers don't work/work differently fel mod// 
     } 
 
     else if(dir - curr_dir == 1 ||dir - curr_dir == -3) // turn right 
@@ -312,18 +312,16 @@ void setup() {
 }
 
 void loop() {
-  update_mms_maze();
-    while(1)
-    {
-        flood();
-        previous_run = current_run;
-        exploreToCenter ();
-        current_run = dis[16][1];
-        if(current_run != 0 && current_run == previous_run)break;
-        flood(0);
-        exploreToStart ();
-    }
-    Serial.println("done!!!! The best run is "+ current_run);
+  
+    // flood();
+    // previous_run = current_run;
+    // exploreToCenter ();
+    // current_run = dis[16][1];
+    // if(current_run != 0 && current_run == previous_run)break;
+    // flood(0);
+    // exploreToStart ();
+    // Serial.println("done!!!! The best run is "+ current_run);
+    // update_mms_maze();
 }
 
 
