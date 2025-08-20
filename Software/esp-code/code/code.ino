@@ -119,8 +119,8 @@ void update_mms_maze()
 
 void set_wall()
 {
-    Serial.println("\ncoloring walls" + String(curr_c - 1) + " " + String(16 - curr_r));
-    for(int i=0;i<4;i++) Serial.println(maze[curr_r][curr_c][i]);
+    // Serial.println("\ncoloring walls" + String(curr_c - 1) + " " + String(16 - curr_r));
+    // for(int i=0;i<4;i++) Serial.println(maze[curr_r][curr_c][i]);
     if(maze[curr_r][curr_c][0])setWall(curr_c-1,16-curr_r,'n');
     if(maze[curr_r][curr_c][1])setWall(curr_c-1,16-curr_r,'e');
     if(maze[curr_r][curr_c][2])setWall(curr_c-1,16-curr_r,'s');
@@ -186,7 +186,7 @@ void moveTo (char r, char c) {
     if(r > curr_r) dir = 2;
     if(c < curr_c) dir = 3;
     if(c > curr_c) dir = 1;    
-    Serial.println(String((int) r)+" "+ String((int) c));
+    // Serial.println(String((int) r)+" "+ String((int) c));
     log(String("direction: ") + tostr(dir));
 
     // compare the movement direction to the current directoin to know how should I turn 
@@ -226,7 +226,7 @@ void exploreToCenter () {
     while (! (((curr_r == MAX_H / 2 - 1) || (curr_r == MAX_H / 2)) && ((curr_c == MAX_W / 2 - 1) || (curr_c == MAX_W / 2)))) {
         maze [curr_r][curr_c][4] = 1;
         log("start: " + tostr(dis[curr_r][curr_c]));
-        Serial.println(String((int)curr_r)+" "+String((int)curr_c )+" "+String((int)curr_dir));
+        log(String((int)curr_r)+" "+String((int)curr_c )+" "+String((int)curr_dir));
         bool walls [4];
         walls [0] = wallFront();
         walls [1] = wallRight();
@@ -267,7 +267,7 @@ void exploreToStart()
     while (!(curr_c == 1 && curr_r == 16)) {
         maze [curr_r][curr_c][4] = 1;
         log("start: " + tostr(dis[curr_r][curr_c]));
-        Serial.println(String((int)curr_r)+" "+String((int)curr_c )+" "+String((int)curr_dir));
+        log(String((int)curr_r)+" "+String((int)curr_c )+" "+String((int)curr_dir));
         bool walls [4];
         walls [0] = wallFront();
         walls [1] = wallRight();
@@ -306,22 +306,28 @@ void exploreToStart()
 }
 
 void setup() {
+  Serial.begin(19200);
   initialise(c_q,MAX_H * MAX_W); //queue initialisation for storing row and coloumn
   initialise(r_q,MAX_H* MAX_W);
+  update_mms_maze();
+  log("Khalast setup");
+//   Serial.println("Khalast setup");
+
 
 }
 
 void loop() {
-  
-    // flood();
-    // previous_run = current_run;
-    // exploreToCenter ();
-    // current_run = dis[16][1];
-    // if(current_run != 0 && current_run == previous_run)break;
-    // flood(0);
-    // exploreToStart ();
-    // Serial.println("done!!!! The best run is "+ current_run);
-    // update_mms_maze();
+    log("Dakhalt el loop");
+    while(1) {
+    flood();
+    previous_run = current_run;
+    exploreToCenter ();
+    current_run = dis[16][1];
+    if(current_run != 0 && current_run == previous_run) break;
+    flood(0);
+    exploreToStart ();
+    log("done!!!! The best run is "+ current_run);
+    }
 }
 
 
