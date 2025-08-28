@@ -82,6 +82,8 @@ char dequeue(queue*q)
 char curr_dir = 0; // 0--> North, 1 --> East, 2 --> South, 3 --> West
 char curr_r = 16, curr_c = 1;
 
+int current_run;
+int previous_run;
 
 bool maze [MAX_H][MAX_W][5] = {0}; // represents the maze, first 4 bits represent the walls N E S W, the last bit represents the visiting status
 //leh mn3melsh byte/char maze[MAX_H][MAX_W] ?
@@ -144,21 +146,33 @@ bool isValid (char r, char c) {
 bool isAccessible (char r, char c,char dir) {
     return ! (maze [r][c][dir] || maze[r+r_mov[dir]][c + c_mov[dir]][(dir+2)%4]);
 }
-queue*c_q=initialise(MAX_H); //queue initialisation for storing row and coloumn
-queue*r_q=initialise(MAX_W);
-void flood () {
+queue*c_q=initialise(MAX_H * MAX_W); //queue initialisation for storing row and coloumn
+queue*r_q=initialise(MAX_H* MAX_W);
+void flood (bool goal = 1) { // make goal = 0 to change the goal to the start
+
     for(char i=0;i<MAX_W;i++){ //initialize all cells with -1
         for(char j=0;j<MAX_H;j++){
             dis[i][j]=-1;
         }
     }
-    for(char x=MAX_W/2 - 1;x<MAX_W/2+1;x++){ //change middle cells with 0
-        for(char w=MAX_H/2 - 1;w<MAX_H/2+1;w++){
-           dis[x][w]=0; 
-           enqueue(r_q,x);
-           enqueue(c_q,w);
+
+    if(goal)
+    {
+        for(char x=MAX_W/2 - 1;x<MAX_W/2+1;x++){ //change middle cells with 0
+            for(char w=MAX_H/2 - 1;w<MAX_H/2+1;w++){
+            dis[x][w]=0; 
+            enqueue(r_q,x);
+            enqueue(c_q,w);
+            }
         }
     }
+    else 
+    {
+        dis[16][1] = 0;
+        enqueue(r_q,16);
+        enqueue(c_q,1);
+    }
+
     while (! isempty (c_q) && ! isempty (r_q)) {
         char r=dequeue (r_q);
         char c=dequeue (c_q);
@@ -228,8 +242,8 @@ void exploreToCenter () {
         walls [1] = API::wallRight();
         //walls [2] = API::wallBack(); wall back isn't working
         walls [3] = API::wallLeft();
-        if(curr_r == 16 && curr_c == 1 && curr_dir == 0) walls[2] = 1;
-        else walls[2] = 0;
+        //if(curr_r == 16 && curr_c == 1 && curr_dir == 0) walls[2] = 1;
+        //walls[2] = 0;
         //for(int i=0;i<4;i++) std::cerr<<walls[i]<<" ";
         //std::cerr<<std::endl;
 
@@ -260,7 +274,64 @@ void exploreToCenter () {
     }
 }
 
+
+
+
+void exploreToStart()
+{
+    while (!(curr_c == 1 && curr_r == 16)) {
+        maze [curr_r][curr_c][4] = 1;
+        log("start: " + tostr(dis[curr_r][curr_c]));
+        std::cerr << (int)curr_r<<" "<<(int)curr_c <<" "<<(int)curr_dir<< std::endl;
+        bool walls [4];
+        walls [0] = API::wallFront();
+        walls [1] = API::wallRight();
+        //walls [2] = API::wallBack(); wall back isn't working
+        walls [3] = API::wallLeft();
+        if(curr_r == 16 && curr_c == 1 && curr_dir == 0) walls[2] = 1;
+        else walls[2] = 0;
+        //for(int i=0;i<4;i++) std::cerr<<walls[i]<<" ";
+        //std::cerr<<std::endl;
+
+        
+
+        char d = curr_dir, w = 0;
+        do {
+            maze [curr_r][curr_c][d] = walls [w];
+            d = (d + 1) % 4;
+            w ++;
+        } while (d != curr_dir);
+        
+        set_wall();
+        char next_r = curr_r, next_c = curr_c;
+
+        for (char i = 0; i < 4; i ++) {
+            if (isValid (curr_r + r_mov [i], curr_c + c_mov [i]) && isAccessible(curr_r,curr_c,i) && dis [curr_r + r_mov [i]][curr_c + c_mov [i]] < dis [next_r][next_c]) {
+                next_r = curr_r + r_mov [i];
+                next_c = curr_c + c_mov [i];
+            }
+        }
+        log("to: " + tostr(dis[next_r][next_c]));
+
+        if ((next_r == curr_r) && (next_c == curr_c))
+            flood (0);
+        else 
+            moveTo (next_r, next_c);
+    }
+}
+
+
 main () {
     update_mms_maze();
-    exploreToCenter ();
+    while(1)
+    {
+        flood();
+        previous_run = current_run;
+        exploreToCenter ();
+        current_run = dis[16][1];
+        if(current_run != 0 && current_run == previous_run)break;
+        flood(0);
+        exploreToStart ();
+    }
+    std::cerr<<"done!!!! The best run is "<<current_run<<std::endl;
 }
