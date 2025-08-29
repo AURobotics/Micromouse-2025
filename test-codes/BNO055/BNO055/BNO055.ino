@@ -11,7 +11,7 @@
 #define right_dir2 26
 #define right_pwm 32
 
-Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x28, &Wire);
+Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x29, &Wire);
 
 void setup(void)
 {
@@ -25,7 +25,6 @@ void setup(void)
   }
 
   delay(1000);
-  bno.setExtCrystalUse(true);
   pinMode(left_dir1, OUTPUT);
   pinMode(left_dir2, OUTPUT);
   pinMode(left_pwm, OUTPUT);
