@@ -3,5 +3,8 @@ project(raw_algo)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(raw_algo main.cpp)
+add_executable(raw_algo main.cpp
+                mms-cpp/API.h
+                mms-cpp/API.cpp
+)
 include_directories(mms-cpp)
