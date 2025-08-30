@@ -1,4 +1,4 @@
-// ----- API -----
+#pragma once
 
 void log(String message) {
     Serial.print("log " + message + "\n");
