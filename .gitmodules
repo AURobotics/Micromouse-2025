@@ -4,3 +4,6 @@
 [submodule "mms-arduino"]
 	path = mms-arduino
 	url = https://github.com/mackorone/mms-arduino/
+[submodule "firmware/micromouse/lib/BNO055-driver"]
+	path = firmware/micromouse/lib/BNO055-driver
+	url = https://github.com/AURobotics/BNO055-driver/

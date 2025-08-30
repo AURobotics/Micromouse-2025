@@ -1,20 +1,20 @@
-// SOME NOTES AND TO DO LIST LOL
-
-// PositionX and PositionY are the odometry poses, I need to calculate from the the CurrR and CurrC (current row and
-// column in the 2d array) or just have them update when moving each tiles
-
+// // SOME NOTES AND TO DO LIST LOL
+//
+// // PositionX and PositionY are the odometry poses, I need to calculate from the the CurrR and CurrC (current row and
+// // column in the 2d array) or just have them update when moving each tiles
+//
 #include "Arduino.h"
 #include <Adafruit_BNO055.h>
 #include <Adafruit_Sensor.h>
-#include <RotaryEncoderPCNT.h>
-#include <Wire.h>
 #include <utility/imumaths.h>
+#include <ESP32Encoder.h>
 
 inline void getPosition(); // odom
 inline float getOrientationX();
 inline float getRate();
 void moveF(double tiles);
 void turn(double angle);
+
 
 
 #define ticksperlafa 1400
@@ -26,13 +26,13 @@ void turn(double angle);
 // right motor pins
 #define rightMotorForward 14
 #define rightMotorBackward 13
-RotaryEncoderPCNT rightEncoder(9, 8);
+ESP32Encoder rightEncoder;
 double previousRight;
 
 // left motor pins
 #define leftMotorForward 15
 #define leftMotorBackward 17
-RotaryEncoderPCNT leftEncoder(7, 10);
+ESP32Encoder leftEncoder;
 double previousLeft;
 
 
@@ -59,7 +59,7 @@ void setup()
     if (!bno.begin()) // lol
     {
         Serial.println("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
-        while (1)
+        while (true)
             ;
     }
     // delay(1000);
@@ -69,8 +69,11 @@ void setup()
     analogWrite(leftMotorBackward, 0);
     analogWrite(rightMotorForward, 0);
     analogWrite(rightMotorBackward, 0);
-    leftEncoder.setPosition(0);
-    rightEncoder.setPosition(0);
+
+    leftEncoder.attachFullQuad(7, 10);
+    rightEncoder.attachFullQuad(9, 8);
+    leftEncoder.clearCount();
+    rightEncoder.clearCount();
     getPosition();
     delay(5000);
 }
