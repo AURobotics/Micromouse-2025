@@ -2,36 +2,45 @@
 #include "pins_arduino.h"
 #include <esp_adc/adc_oneshot.h>
 
-constexpr uint8_t ADC1_0 = 1;
-constexpr uint8_t ADC1_1 = 2;
-constexpr uint8_t ADC1_2 = 3;
-constexpr uint8_t ADC1_3 = 4;
-constexpr uint8_t ADC1_4 = 5;
-constexpr uint8_t ADC1_5 = 6;
-
-
-struct IR {
-    uint8_t trig_pin;
-    uint8_t echo_pin;
+enum class ADC_PINS : uint8_t {
+    ADC1_0 = 1, ADC1_1, ADC1_2, ADC1_3, ADC1_4, ADC1_5
 };
 
-IR front_left_ir = {36, ADC1_0};
-IR front_right_ir = {33, ADC1_5};
-IR left_ir = {35, ADC1_2};
-IR right_ir = {18, ADC1_3};
-IR left_diagonal_ir = {40, ADC1_1};
-IR right_diagonal_ir = {34, ADC1_4};
+struct IR {
+    constexpr IR(const uint8_t trig_pin, const ADC_PINS pin) : trig_pin(trig_pin),
+    echo_pin(pin) {}
+    uint8_t trig_pin;
+    ADC_PINS echo_pin;
+    void setup() const {
+        pinMode(trig_pin, OUTPUT);
+        pinMode(static_cast<uint8_t>(echo_pin), INPUT);
+    }
 
-std::array ir_array = {front_left_ir, front_right_ir, left_ir, right_ir, left_diagonal_ir, right_diagonal_ir};
+    //TODO: Enter a critical section
 
+    uint16_t read() const {
+        digitalWrite(this->trig_pin, HIGH);
+        delayMicroseconds(5);
+        const uint16_t val = analogRead(static_cast<uint8_t>(this->echo_pin));
+        digitalWrite(this->trig_pin, LOW);
+        return val;
+    }
+};
+
+constexpr IR front_left_ir = {36, ADC_PINS::ADC1_0};
+constexpr IR front_right_ir = {33, ADC_PINS::ADC1_5};
+constexpr IR left_ir = {35, ADC_PINS::ADC1_2};
+constexpr IR right_ir = {18, ADC_PINS::ADC1_3};
+constexpr IR left_diagonal_ir = {40, ADC_PINS::ADC1_1};
+constexpr IR right_diagonal_ir = {34, ADC_PINS::ADC1_4};
+
+constexpr std::array ir_array = {front_left_ir, front_right_ir, left_ir, right_ir, left_diagonal_ir, right_diagonal_ir};
 
 void setup() {
     Serial.begin(115200);
-    for (const auto &[trig_pin, echo_pin] : ir_array) {
-        pinMode(trig_pin, OUTPUT);
-        digitalWrite(trig_pin, LOW);
-        pinMode(echo_pin, INPUT);
-    }
+    for (const auto &ir : ir_array)
+        ir.setup();
+
     Serial.println("Test");
 }
 
@@ -46,7 +55,7 @@ void loop() {
         u_long a = micros();
         digitalWrite(trig_pin, HIGH);
         delayMicroseconds(5);
-        int val = analogRead(echo_pin);
+        int val = analogRead();
         digitalWrite(trig_pin, LOW);
         u_long b = micros();
         delay(100);
