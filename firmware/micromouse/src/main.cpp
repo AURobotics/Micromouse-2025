@@ -36,12 +36,21 @@ struct IR {
 
 struct Motor {
     Motor(const MOTOR_PINS in1, const MOTOR_PINS in2) : IN1(in1), IN2(in2) {
-        pinMode(static_cast<uint8_t>(IN1), OUTPUT);
-        pinMode(static_cast<uint8_t>(IN2), OUTPUT);
+        // pinMode(static_cast<uint8_t>(IN1), OUTPUT);
+        // pinMode(static_cast<uint8_t>(IN2), OUTPUT);
+        // analogWriteResolution(static_cast<uint8_t>(this->IN1), 10);
+        // analogWriteResolution(static_cast<uint8_t>(this->IN2), 10);
+        // this->move(0);
+    }
+
+    void setup() const {
+        pinMode(static_cast<uint8_t>(this->IN1), OUTPUT);
+        pinMode(static_cast<uint8_t>(this->IN2), OUTPUT);
         analogWriteResolution(static_cast<uint8_t>(this->IN1), 10);
         analogWriteResolution(static_cast<uint8_t>(this->IN2), 10);
         this->move(0);
     }
+
     //0 to 1024
     void move(const uint16_t duty, const Direction direction = Direction::FORWARD) const  {
         analogWrite(static_cast<uint8_t>(this->IN1), duty * static_cast<uint8_t>(direction));
@@ -62,15 +71,19 @@ constexpr IR right_diagonal_ir = {34, ADC_PINS::ADC1_4};
 
 constexpr std::array ir_array = {front_left_ir, front_right_ir, left_ir, right_ir, left_diagonal_ir, right_diagonal_ir};
 
+const auto right_motor = Motor(MOTOR_PINS::IN1, MOTOR_PINS::IN2);
+const auto left_motor = Motor(MOTOR_PINS::IN4, MOTOR_PINS::IN3);
 
 
 void setup() {
     for (const auto &ir : ir_array)
         ir.setup();
-    const auto right_motor = Motor(MOTOR_PINS::IN1, MOTOR_PINS::IN2);
-    const auto left_motor = Motor(MOTOR_PINS::IN4, MOTOR_PINS::IN3);
-    right_motor.move(1024);
-    left_motor.move(1024);
+    
+    right_motor.setup();
+    left_motor.setup();
+
+    // right_motor.move(1024);
+    // left_motor.move(1024);
 }
 
 void loop() {
