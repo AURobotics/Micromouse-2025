@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="BackendCodeEditorMiscSettings">
+    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="20" type="long" />
+    <option name="/Default/Housekeeping/GlobalSettingsUpgraded/IsUpgraded/@EntryValue" value="true" type="bool" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="9aabf326-bfa4-4380-ae3e-84c18bb8a423" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/../.idea/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/editor.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/micromouse.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/micromouse/.clang-format" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.gitmodules" beforeDir="false" afterPath="$PROJECT_DIR$/../.gitmodules" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/micromouse/lib/esp-code/code/API.ino" beforeDir="false" afterPath="$PROJECT_DIR$/micromouse/lib/esp-code/API.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/micromouse/lib/esp-code/code/Main.py" beforeDir="false" afterPath="$PROJECT_DIR$/micromouse/Main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/micromouse/lib/esp-code/code/code.ino" beforeDir="false" afterPath="$PROJECT_DIR$/micromouse/lib/esp-code/code.ino" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/micromouse/lib/micromuse/micromuse.ino" beforeDir="false" afterPath="$PROJECT_DIR$/micromouse/lib/micromuse/micromuse.ino" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/micromouse/platformio.ini" beforeDir="false" afterPath="$PROJECT_DIR$/micromouse/platformio.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/micromouse/test/README" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+  </component>
+  <component name="HighlightingSettingsPerFile">
+    <setting file="file://$PROJECT_DIR$/micromouse/lib/esp-code/API.h" root0="SKIP_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/micromouse/lib/esp-code/code.ino" root0="SKIP_HIGHLIGHTING" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 8
+}</component>
+  <component name="ProjectId" id="320ehTpVLvxHtGfCszVyTKdTNtz" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.RadMigrateCodeStyle": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "cf.advertisement.text.overridden": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "com.jetbrains.cidr.cpp.cmake.workspace.CMakeCacheInvalidator.marker": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "/home/lolo/micromouse/firmware/micromouse",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "clion.platformio.config",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="9aabf326-bfa4-4380-ae3e-84c18bb8a423" name="Changes" comment="" />
+      <created>1756562035525</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1756562035525</updated>
+      <workItem from="1756562036819" duration="82000" />
+      <workItem from="1756562120700" duration="23000" />
+      <workItem from="1756562157448" duration="81000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>
