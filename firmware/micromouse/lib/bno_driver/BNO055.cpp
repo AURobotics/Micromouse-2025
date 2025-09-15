@@ -119,7 +119,10 @@ vec_3 imu::euler() const {
 }
 
 // set only for micromouse
-void imu::set_yaw_offset() { this->yaw_offset = this->euler().x(); }
+void imu::set_yaw_offset() {
+    auto vec = euler();
+    this->yaw_offset = vec.x();
+}
 
 float imu::relative_heading() const {
     uint8_t buf[2] = {};

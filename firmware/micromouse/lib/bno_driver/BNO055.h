@@ -1,8 +1,8 @@
 #pragma once
 #include <Wire.h>
 #include <driver/i2c.h>
-#include "BNO055_registers.h"
 #include "Arduino.h"
+#include "BNO055_registers.h"
 
 
 struct Calibration_t {
@@ -55,7 +55,6 @@ public:
     void remap_axis(Axis_remap_config config) const;
     void remap_axis(enum remap_axis axis, remap_sign) const;
     void calibration_status(Calibration_t& s) const;
-    float relative_heading();
 
 
     // void set_units_metric() const;
@@ -66,8 +65,8 @@ public:
     vec_3 gyro() const;
     vec_3 mag() const;
     vec_3 euler() const;
-    float relative_heading() const;
     vec_4 quaternion() const;
+    float relative_heading() const;
 
 
 private:
