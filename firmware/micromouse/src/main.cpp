@@ -49,12 +49,12 @@ float normalize_angle(const float angle, const float init_angle) {
     return ret * -1;
 }
 
+pcnt_unit_handle_t pcnt_handler = nullptr;
 
 void setup() {
     Serial.begin(115200);
     bno.setup(true);
     // bno.remap_axis(bno_axis_config);
-    pcnt_unit_handle_t pcnt_handler = nullptr;
     pcnt_unit_config_t unit_config = {
         .low_limit = INT16_MIN,
         .high_limit = INT16_MAX
@@ -107,6 +107,8 @@ void setup() {
 }
 
 void loop() {
-    Serial.println();
+    int counter = 0;
+    pcnt_unit_get_count(pcnt_handler, &counter);
+    Serial.println(counter);
     delay(100);
 }
