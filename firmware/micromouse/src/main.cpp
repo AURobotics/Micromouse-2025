@@ -49,23 +49,64 @@ float normalize_angle(const float angle, const float init_angle) {
     return ret * -1;
 }
 
-pcnt_unit_handle_t pcnt_handler = nullptr;
-pcnt_unit_config_t unit_config_t = {
-};
-
-
-constexpr auto chan_a_config = pcnt_chan_config_t{
-    .edge_gpio_num = 2,
-    .level_gpio_num = 4
-};
 
 void setup() {
     Serial.begin(115200);
     bno.setup(true);
     // bno.remap_axis(bno_axis_config);
+    pcnt_unit_handle_t pcnt_handler = nullptr;
+    pcnt_unit_config_t unit_config = {
+        .low_limit = INT16_MIN,
+        .high_limit = INT16_MAX
+    };
+    unit_config.flags.accum_count = 1;
+
+    ESP_ERROR_CHECK(pcnt_new_unit(&unit_config, &pcnt_handler));
+
+    constexpr pcnt_chan_config_t chan_a_config = {
+        .edge_gpio_num = 2,
+        .level_gpio_num = 4,
+    };
+
+    pcnt_channel_handle_t chan_a_handle = nullptr;
+    ESP_ERROR_CHECK(
+        pcnt_new_channel(pcnt_handler, &chan_a_config, &chan_a_handle));
+
+    constexpr pcnt_chan_config_t chan_b_config = {
+        .edge_gpio_num = 4,
+        .level_gpio_num = 2,
+    };
+
+    pcnt_channel_handle_t chan_b_handle = nullptr;
+    ESP_ERROR_CHECK(
+        pcnt_new_channel(pcnt_handler, &chan_b_config, &chan_b_handle));
+
+    gpio_pullup_en(GPIO_NUM_0);
+    gpio_pullup_en(GPIO_NUM_1);
+
+    ESP_ERROR_CHECK(
+        pcnt_channel_set_edge_action(chan_a_handle,
+                                     PCNT_CHANNEL_EDGE_ACTION_DECREASE,
+                                     PCNT_CHANNEL_EDGE_ACTION_INCREASE));
+    ESP_ERROR_CHECK(
+        pcnt_channel_set_level_action(chan_a_handle,
+                                      PCNT_CHANNEL_LEVEL_ACTION_KEEP,
+                                      PCNT_CHANNEL_LEVEL_ACTION_INVERSE));
+    ESP_ERROR_CHECK(
+        pcnt_channel_set_edge_action(chan_b_handle,
+                                     PCNT_CHANNEL_EDGE_ACTION_INCREASE,
+                                     PCNT_CHANNEL_EDGE_ACTION_DECREASE));
+    ESP_ERROR_CHECK(
+        pcnt_channel_set_level_action(chan_b_handle,
+                                      PCNT_CHANNEL_LEVEL_ACTION_KEEP,
+                                      PCNT_CHANNEL_LEVEL_ACTION_INVERSE));
+
+    ESP_ERROR_CHECK(pcnt_unit_enable(pcnt_handler));
+    ESP_ERROR_CHECK(pcnt_unit_clear_count(pcnt_handler));
+    ESP_ERROR_CHECK(pcnt_unit_start(pcnt_handler));
 }
 
 void loop() {
-    Serial.println(bno.relative_heading());
+    Serial.println();
     delay(100);
 }
