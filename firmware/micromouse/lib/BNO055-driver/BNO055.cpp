@@ -4,8 +4,7 @@
 
 imu::imu(const int8_t SCL, const int8_t SDA, const i2c_port_t port,
          const uint8_t address) :
-    SCL(SCL), SDA(SDA), address(address), i2c(port == 0 ? Wire : Wire1) {
-}
+    SCL(SCL), SDA(SDA), address(address), i2c(port == 0 ? Wire : Wire1) {}
 
 void imu::setup() const {
     while (true) {
@@ -28,23 +27,27 @@ void imu::set_mode(operation_mode mode) const {
 }
 
 void imu::remap_axis(const uint8_t config) const {
+    this->set_mode(operation_mode::CONFIG);
     if (config > 7)
         return;
     remap_axis(static_cast<::remap_axis>(axis_remap_table[config].first),
                static_cast<remap_sign>(axis_remap_table[config].second));
+    this->set_mode(operation_mode::NDOF);
 }
 
 
-void imu::remap_axis(Axis_remap_config config)const {
-    const auto config_axis = static_cast<uint8_t>(config.x_axis)
-                 |  static_cast<uint8_t>(config.y_axis) << 2
-     | static_cast<uint8_t>(config.z_axis) << 4;
+void imu::remap_axis(Axis_remap_config config) const {
+    this->set_mode(operation_mode::CONFIG);
+    const auto config_axis = static_cast<uint8_t>(config.x_axis) |
+        static_cast<uint8_t>(config.y_axis) << 2 |
+        static_cast<uint8_t>(config.z_axis) << 4;
     write_register(imu_registers::axis_remap::REMAP_AXIS, config_axis);
 
     const auto config_sign = static_cast<uint8_t>(config.x_sign) << 2 |
-                          static_cast<uint8_t>(config.y_sign) << 1 |
-                          static_cast<uint8_t>(config.z_sign);
+        static_cast<uint8_t>(config.y_sign) << 1 |
+        static_cast<uint8_t>(config.z_sign);
     write_register(imu_registers::axis_remap::REMAP_SIGN, config_sign);
+    this->set_mode(operation_mode::NDOF);
 }
 
 void imu::calibration_status(Calibration_t& s) const {
@@ -71,7 +74,7 @@ int8_t imu::temperature() const {
 }
 
 vec_3 imu::acceleration() const {
-    vec_3 v  {};
+    vec_3 v{};
     uint8_t buf[6] = {};
     read_register(imu_registers::sensor_data::ACCEL_X_LSB, buf, 6);
     for (int i = 0; i < 3; ++i) {
