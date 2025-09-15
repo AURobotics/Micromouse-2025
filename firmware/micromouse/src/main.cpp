@@ -64,8 +64,8 @@ void setup() {
     ESP_ERROR_CHECK(pcnt_new_unit(&unit_config, &pcnt_handler));
 
     constexpr pcnt_chan_config_t chan_a_config = {
-        .edge_gpio_num = 2,
-        .level_gpio_num = 4,
+        .edge_gpio_num = static_cast<uint8_t>(ENC_PINS::PA_1),
+        .level_gpio_num = static_cast<uint8_t>(ENC_PINS::PA_1),
     };
 
     pcnt_channel_handle_t chan_a_handle = nullptr;

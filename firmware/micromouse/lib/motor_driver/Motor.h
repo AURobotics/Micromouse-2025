@@ -2,7 +2,7 @@
 #include "Arduino.h"
 
 enum class MOTOR_PINS : uint8_t { IN1 = 13, IN2 = 14, IN3 = 15, IN4 = 17 };
-enum class ENC_PINS : uint8_t {PA_1 = , PB_1, PA_2, PB_2};
+enum class ENC_PINS : uint8_t {PA_1 = 9, PB_1 = 10, PA_2 = 7, PB_2 = 8};
 
 enum class Direction : uint8_t { FORWARD = 0, BACKWARD = 1, STOP = 2 };
 
