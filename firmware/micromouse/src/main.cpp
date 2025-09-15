@@ -49,12 +49,24 @@ float normalize_angle(const float angle, const float init_angle) {
     return ret * -1;
 }
 
+pcnt_unit_handle_t pcnt_handler = nullptr;
+pcnt_unit_config_t unit_config_t = {
+};
+
+
+constexpr auto chan_a_config = pcnt_chan_config_t{
+    .edge_gpio_num = 2,
+    .level_gpio_num = 4
+};
+
+
 void setup() {
     bno.setup();
     bno.remap_axis(bno_axis_config);
     pinMode(15, OUTPUT);
     digitalWrite(15, LOW);
     delay(1000);
+
 }
 
 void loop() {
