@@ -78,7 +78,7 @@ vec_3 imu::acceleration() const {
     uint8_t buf[6] = {};
     read_register(imu_registers::sensor_data::ACCEL_X_LSB, buf, 6);
     for (int i = 0; i < 3; ++i) {
-        v.vec[i] = static_cast<int16_t>(buf[2 * i + 1] << 8 | buf[2 * i]) /
+        v.vec[i] = static_cast<float>(buf[2 * i + 1] << 8 | buf[2 * i]) /
             100.0f; // scale: 1 LSB = 1 mg = 0.01 m/s^2
     }
     return v;
@@ -90,7 +90,7 @@ vec_3 imu::gyro() const {
     read_register(imu_registers::sensor_data::GYRO_X_LSB, buf, 6);
     for (int i = 0; i < 3; ++i)
         v.vec[i] =
-            static_cast<int16_t>(buf[2 * i + 1] << 8 | buf[2 * i]) / 900.0f;
+            static_cast<float>(buf[2 * i + 1] << 8 | buf[2 * i]) / 900.0f;
     return v;
 }
 
@@ -100,7 +100,7 @@ vec_3 imu::mag() const {
     read_register(imu_registers::sensor_data::MAG_X_LSB, buf, 6);
     for (int i = 0; i < 3; ++i)
         v.vec[i] =
-            static_cast<int16_t>(buf[2 * i + 1] << 8 | buf[2 * i]) / 16.0f;
+            static_cast<float>(buf[2 * i + 1] << 8 | buf[2 * i]) / 16.0f;
     return v;
 }
 
@@ -108,12 +108,12 @@ vec_3 imu::mag() const {
  * x, y, z
  */
 vec_3 imu::euler() const {
-    vec_3 v;
+    vec_3 v{};
     uint8_t buf[6] = {};
     read_register(imu_registers::sensor_data::EUL_X_LSB, buf, 6);
     for (int i = 0; i < 3; ++i)
         v.vec[i] =
-            static_cast<int16_t>(buf[2 * i + 1] << 8 | buf[2 * i]) / 16.0f;
+            static_cast<float>(buf[2 * i + 1] << 8 | buf[2 * i]) / 16.0f;
     return v;
 }
 
@@ -127,7 +127,7 @@ vec_4 imu::quaternion() const {
     read_register(sensor_data::QUAT_W_LSB, buf, 8);
     for (int i = 0; i < 4; ++i)
         v.vec[i] =
-            static_cast<int16_t>(buf[2 * i + 1] << 8 | buf[2 * i]) / 16384.0f;
+            static_cast<float>(buf[2 * i + 1] << 8 | buf[2 * i]) / 16384.0f;
     return v;
 }
 

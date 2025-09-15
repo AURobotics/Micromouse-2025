@@ -29,15 +29,15 @@ const auto left_motor = Motor(MOTOR_PINS::IN4, MOTOR_PINS::IN3);
 
 // set the default axis
 // signs corresponds to default axis
-constexpr auto bno_axis_config = Axis_remap_config{
-    .x_axis = remap_axis::z_axis,
-    .y_axis = remap_axis::y_axis,
-    .z_axis = remap_axis::x_axis,
-
-    .x_sign = remap_sign::positive,
-    .y_sign = remap_sign::positive,
-    .z_sign = remap_sign::negative,
-};
+// constexpr auto bno_axis_config = Axis_remap_config{
+//     .x_axis = remap_axis::z_axis,
+//     .y_axis = remap_axis::y_axis,
+//     .z_axis = remap_axis::x_axis,
+//
+//     .x_sign = remap_sign::positive,
+//     .y_sign = remap_sign::positive,
+//     .z_sign = remap_sign::negative,
+// };
 
 auto bno = imu(16, 21, I2C_NUM_0);
 
@@ -59,20 +59,16 @@ constexpr auto chan_a_config = pcnt_chan_config_t{
     .level_gpio_num = 4
 };
 
-
 void setup() {
+    Serial.begin(115200);
     bno.setup();
-    bno.remap_axis(bno_axis_config);
-    pinMode(15, OUTPUT);
-    digitalWrite(15, LOW);
-    delay(1000);
-
+    // bno.remap_axis(bno_axis_config);
 }
 
 void loop() {
     auto vec = bno.euler();
-    static auto z_init = vec.z();
-    float angle = fmod(vec.z() + 180 - z_init, 360.0f);
+    static auto x_init = vec.x();
+    float angle = fmod(vec.x() + 180 - x_init, 360.0f);
     if (angle < 0)
         angle += 360;
     angle -= 180;
