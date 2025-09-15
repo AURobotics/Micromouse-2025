@@ -1,27 +1,14 @@
 #include <Arduino.h>
-#include "pins_arduino.h"
-#include <esp_adc/adc_oneshot.h>
-
-enum class ADC_PINS : uint8_t {
-    ADC1_0 = 1, ADC1_1, ADC1_2, ADC1_3, ADC1_4, ADC1_5
-};
-
-enum class MOTOR_PINS : uint8_t {
-    IN1 = 13, IN2 = 14, IN3 = 15, IN4 = 17
-};
-
-enum class Direction : bool {
-    FORWARD = 0, BACKWARD = 1
-};
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/pulse_cnt.h"
 
 #include "Motor.h"
 #include "IR.h"
 #include "BNO055.h"
-
 #include "Wire.h"
+
 
 constexpr IR front_left_ir = {36, ADC_PINS::ADC1_0};
 constexpr IR front_right_ir = {33, ADC_PINS::ADC1_5};
@@ -34,17 +21,31 @@ constexpr std::array ir_array = {front_left_ir, front_right_ir, left_ir, right_i
 const auto right_motor = Motor(MOTOR_PINS::IN1, MOTOR_PINS::IN2);
 const auto left_motor = Motor(MOTOR_PINS::IN4, MOTOR_PINS::IN3);
 
-auto bno = imu(16,21, I2C_NUM_1);
 
+//set the default axis
+//signs corresponds to default axis
+ constexpr auto bno_axis_config = Axis_remap_config{
+    .x_axis = remap_axis::z_axis,
+    .y_axis = remap_axis::y_axis,
+    .z_axis = remap_axis::x_axis,
 
+    .x_sign = remap_sign::positive,
+    .y_sign = remap_sign::positive,
+    .z_sign = remap_sign::negative,
+};
+
+auto bno = imu(16,21, I2C_NUM_0);
+
+float normalize_angle(const float angle, const float init_angle) {
+    float ret = fmod(angle + 180 - init_angle, 360.0f);
+    if (ret < 0) ret += 360;
+    ret -= 180;
+    return ret * -1;
+}
 
 void setup() {
-    // Serial.begin(115200);
-    // delay(2000);
-    // for (const auto &ir : ir_array)
-    //     ir.setup();
-    // auto hi = bno.mag();
     bno.setup();
+    bno.remap_axis(bno_axis_config);
     pinMode(15, OUTPUT);
     digitalWrite(15, LOW);
     delay(1000);
@@ -53,7 +54,7 @@ void setup() {
 void loop() {
     auto vec = bno.euler();
     static auto x_init = vec.x();
-    float angle = fmod(vec.x() + 180 - x_init, 360.0f);
+    float angle = fmod(vec.z() + 180 - x_init, 360.0f);
     if (angle < 0) angle += 360;
     angle -= 180;
     angle *= -1;

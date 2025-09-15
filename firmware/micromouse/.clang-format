@@ -7,7 +7,7 @@ AlignConsecutiveAssignments: false
 AlignConsecutiveDeclarations: false
 AlignOperands: false
 AlignTrailingComments: false
-AlwaysBreakTemplateDeclarations: Yes
+BreakTemplateDeclarations: Yes
 AllowShortEnumsOnASingleLine: true
 BraceWrapping:
   AfterCaseLabel: false
