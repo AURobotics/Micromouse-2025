@@ -1,15 +1,9 @@
 #pragma once
 #include <Wire.h>
 #include <driver/i2c.h>
-#include "Arduino.h"
 #include "BNO055_registers.h"
+#include "Arduino.h"
 
-/*
-TODO: pass wire object as parameter with default value. On esp, start it on
-TODO: I2C port 0.
-TODO: add esp-idf compatability
-TODO: IMU zeroing
-*/
 
 struct Calibration_t {
     uint8_t sys = 0;
