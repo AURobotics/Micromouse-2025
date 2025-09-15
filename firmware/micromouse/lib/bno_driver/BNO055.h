@@ -49,7 +49,7 @@ struct imu {
 public:
     imu(int8_t SCL, int8_t SDA, i2c_port_t port = I2C_NUM_0,
         uint8_t address = 0x29);
-    void setup() const;
+    void setup(bool set_x_offset = false);
     void set_mode(operation_mode mode) const;
     void remap_axis(uint8_t config) const; // 0 to 7
     void remap_axis(Axis_remap_config config) const;
@@ -66,6 +66,7 @@ public:
     vec_3 gyro() const;
     vec_3 mag() const;
     vec_3 euler() const;
+    float relative_heading() const;
     vec_4 quaternion() const;
 
 
@@ -74,7 +75,9 @@ private:
     int8_t SDA;
     uint8_t address = 0X29;
     TwoWire& i2c;
+    float yaw_offset{};
 
+    void set_yaw_offset();
     void write_register(uint8_t reg, uint8_t val) const;
     uint8_t read_register(uint8_t reg, uint8_t* buffer, uint8_t len = 8) const;
 };

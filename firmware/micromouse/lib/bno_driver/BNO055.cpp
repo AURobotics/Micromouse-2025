@@ -6,7 +6,8 @@ imu::imu(const int8_t SCL, const int8_t SDA, const i2c_port_t port,
          const uint8_t address) :
     SCL(SCL), SDA(SDA), address(address), i2c(port == 0 ? Wire : Wire1) {}
 
-void imu::setup() const {
+
+void imu::setup(const bool set_x_offset) {
     while (true) {
         if (i2c.begin(SDA, SCL))
             break;
@@ -20,6 +21,8 @@ void imu::setup() const {
     write_register(imu_registers::unit::UNIT_SEL, unit);
     set_mode(operation_mode::NDOF);
     vTaskDelay(20);
+    if (set_x_offset)
+        set_yaw_offset();
 }
 
 void imu::set_mode(operation_mode mode) const {
@@ -99,8 +102,7 @@ vec_3 imu::mag() const {
     uint8_t buf[6] = {};
     read_register(imu_registers::sensor_data::MAG_X_LSB, buf, 6);
     for (int i = 0; i < 3; ++i)
-        v.vec[i] =
-            static_cast<float>(buf[2 * i + 1] << 8 | buf[2 * i]) / 16.0f;
+        v.vec[i] = static_cast<float>(buf[2 * i + 1] << 8 | buf[2 * i]) / 16.0f;
     return v;
 }
 
@@ -112,9 +114,23 @@ vec_3 imu::euler() const {
     uint8_t buf[6] = {};
     read_register(imu_registers::sensor_data::EUL_X_LSB, buf, 6);
     for (int i = 0; i < 3; ++i)
-        v.vec[i] =
-            static_cast<float>(buf[2 * i + 1] << 8 | buf[2 * i]) / 16.0f;
+        v.vec[i] = static_cast<float>(buf[2 * i + 1] << 8 | buf[2 * i]) / 16.0f;
     return v;
+}
+
+// set only for micromouse
+void imu::set_yaw_offset() { this->yaw_offset = this->euler().x(); }
+
+float imu::relative_heading() const {
+    uint8_t buf[2] = {};
+    read_register(imu_registers::sensor_data::EUL_X_LSB, buf, 2);
+    float angle = static_cast<float>(buf[1] << 8 | buf[0]) / 16.0f;
+    angle = fmod(angle + 180 - this->yaw_offset, 360.0f);
+    if (angle < 0)
+        angle += 360;
+    angle -= 180;
+    angle *= -1;
+    return angle;
 }
 
 /**

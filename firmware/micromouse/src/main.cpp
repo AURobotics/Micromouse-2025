@@ -61,18 +61,11 @@ constexpr auto chan_a_config = pcnt_chan_config_t{
 
 void setup() {
     Serial.begin(115200);
-    bno.setup();
+    bno.setup(true);
     // bno.remap_axis(bno_axis_config);
 }
 
 void loop() {
-    auto vec = bno.euler();
-    static auto x_init = vec.x();
-    float angle = fmod(vec.x() + 180 - x_init, 360.0f);
-    if (angle < 0)
-        angle += 360;
-    angle -= 180;
-    angle *= -1;
-    Serial.println(angle);
+    Serial.println(bno.relative_heading());
     delay(100);
 }
