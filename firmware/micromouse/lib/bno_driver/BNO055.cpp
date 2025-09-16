@@ -19,7 +19,7 @@ void imu::setup(const bool set_x_offset) {
     constexpr uint8_t unit = 1 << 2 | 1 << 1;
     write_register(imu_registers::unit::UNIT_SEL, unit);
     set_mode(operation_mode::NDOF);
-    vTaskDelay(20);
+    vTaskDelay(100);
     if (set_x_offset)
         set_yaw_offset();
 }
@@ -127,7 +127,7 @@ float imu::relative_heading() const {
     if (angle < 0)
         angle += 360;
     angle -= 180;
-    angle *= -1;
+    //angle *= -1;
     return angle;
 }
 
