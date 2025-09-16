@@ -125,14 +125,17 @@ void setup() {
     gpio_pullup_en(GPIO_NUM_0);
     gpio_pullup_en(GPIO_NUM_1);
 
+    //supposedly this setup is correct
     ESP_ERROR_CHECK(pcnt_channel_set_edge_action(
         chan_a_handle, PCNT_CHANNEL_EDGE_ACTION_DECREASE, PCNT_CHANNEL_EDGE_ACTION_INCREASE));
     ESP_ERROR_CHECK(pcnt_channel_set_level_action(
         chan_a_handle, PCNT_CHANNEL_LEVEL_ACTION_KEEP, PCNT_CHANNEL_LEVEL_ACTION_INVERSE));
+
     ESP_ERROR_CHECK(pcnt_channel_set_edge_action(
-        chan_b_handle, PCNT_CHANNEL_EDGE_ACTION_DECREASE, PCNT_CHANNEL_EDGE_ACTION_INCREASE));
+        chan_b_handle, PCNT_CHANNEL_EDGE_ACTION_INCREASE, PCNT_CHANNEL_EDGE_ACTION_DECREASE));
     ESP_ERROR_CHECK(pcnt_channel_set_level_action(
         chan_b_handle, PCNT_CHANNEL_LEVEL_ACTION_KEEP, PCNT_CHANNEL_LEVEL_ACTION_INVERSE));
+
 
     ESP_ERROR_CHECK(pcnt_unit_enable(pcnt_handler));
     ESP_ERROR_CHECK(pcnt_unit_clear_count(pcnt_handler));
