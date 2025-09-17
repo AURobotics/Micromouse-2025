@@ -33,11 +33,16 @@ const auto left_motor = Motor(MOTOR_PINS::IN1, MOTOR_PINS::IN2);
 // };
 
 
-// int readings[6];
+[[noreturn]]
+void IR_task(void* pvParameters) {
+    uint8_t i = 0;
+    for (;;) {
+        ir_array[i].read();
+    }
+}
 
 
 pcnt_unit_handle_t pcnt_handler = nullptr;
-
 
 void setup() {
     setCpuFrequencyMhz(240);
@@ -66,7 +71,7 @@ void setup() {
     gpio_pullup_en(static_cast<gpio_num_t>(ENC_PINS::PA_1));
     gpio_pullup_en(static_cast<gpio_num_t>(ENC_PINS::PB_1));
 
-    //supposedly this setup is correct
+    // supposedly this setup is correct
     ESP_ERROR_CHECK(pcnt_channel_set_edge_action(
         chan_a_handle, PCNT_CHANNEL_EDGE_ACTION_DECREASE, PCNT_CHANNEL_EDGE_ACTION_INCREASE));
     ESP_ERROR_CHECK(pcnt_channel_set_level_action(
@@ -89,5 +94,3 @@ void loop() {
     Serial.println(counter);
     delay(100);
 }
-
-
