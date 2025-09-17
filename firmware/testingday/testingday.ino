@@ -3,13 +3,28 @@
 #include <Adafruit_BNO055.h>
 #include <utility/imumaths.h>
 #include <RotaryEncoderPCNT.h>
+// #include <WiFi.h>
+// #include <WebServer.h>
+
+// String dataTosend ; 
+
+// // Replace with your network credentials
+// const char* ssid = "Borham2";
+// const char* password = "18046768";
+
+
+
+// // Create a web server on port 80
+// WebServer server(80);
 
 inline void getPosition(); // odom
 inline float getOrientationX();
 inline float getRate();
-void moveF(double tiles);
+bool moveF(double tiles);
 void turn(double angle);
-
+bool wallLeft();
+bool wallRight();
+bool wallFront();
 
 
 #define MAX_H 18
@@ -109,6 +124,12 @@ constexpr uint8_t ADC1_2 = 3;
 constexpr uint8_t ADC1_3 = 4;
 constexpr uint8_t ADC1_4 = 5;
 constexpr uint8_t ADC1_5 = 6;
+
+#define frontrightThresh 100
+#define frontleftThresh 90
+#define leftThresh 300
+#define rightThresh 200
+
 
 
 struct IR {
@@ -236,8 +257,8 @@ void flood (bool goal = 1) { // make goal = 0 to change the goal to the start
 
     if(goal)
     {
-        for(char x=MAX_W/2 - 1;x<MAX_W/2+1;x++){ //change middle cells with 0
-            for(char w=MAX_H/2 - 1;w<MAX_H/2+1;w++){
+        for(char x=4;x<6;x++){ //change middle cells with 0
+            for(char w=12;w<14;w++){
             dis[x][w]=0; 
             enqueue(r_q,x);
             enqueue(c_q,w);
@@ -281,6 +302,7 @@ void moveTo (char r, char c) {
     if(dir - curr_dir == -1 || dir-curr_dir == 3)// turn left
     {
         turn(-90);//turnLeft();
+        delay(500);
         moveF(1);//moveForward();
         curr_dir += 3; // b3mel +3 msh -1 because el negative numbers don't work/work differently fel mod// 
     } 
@@ -288,24 +310,31 @@ void moveTo (char r, char c) {
     else if(dir - curr_dir == 1 ||dir - curr_dir == -3) // turn right 
     {   
         turn(90);//turnRight();
-        moveF(1);//moveForward();
+        delay(500);
         curr_dir++;
+        curr_dir %= 4;
+        if(!moveF(1))return;//moveForward(); //this function returns 0 if it was unable to move,so we leave the func, 3shan man8ayarsh el curr c wel curr r
+        
     }
     else if(dir == curr_dir) // move forward 
     {
-        moveF(1);//moveForward();
+        if(!moveF(1))return;//moveForward();
     }
     else // turn 180
     {
         //turnRight();
         turn(180);//turnRight();
-        moveF(1);//moveForward();
+        delay(500);
         curr_dir += 2;
+        curr_dir %= 4;
+        if(!moveF(1))return;//moveForward();
+        
     }
-
+    
     curr_dir %= 4;
     curr_c = c;
     curr_r = r;
+    delay(500);
 
 }
 
@@ -315,14 +344,24 @@ void exploreToCenter () {
         //log("start: " + tostr(dis[curr_r][curr_c]));
         //log(String((int)curr_r)+" "+String((int)curr_c )+" "+String((int)curr_dir));
         bool walls [4];
-        /*walls [0] = wallFront();
+        walls [0] = wallFront();
         walls [1] = wallRight();
         //walls [2] = wallBack(); wall back isn't working
-        walls [3] = wallLeft();*/
-        //if(curr_r == 16 && curr_c == 1 && curr_dir == 0) walls[2] = 1;
+        walls [3] = wallLeft();
+        if(curr_r == 16 && curr_c == 1 && curr_dir == 0) walls[2] = 1;
         //walls[2] = 0;
         //for(int i=0;i<4;i++) std::cerr<<walls[i]<<" ";
         //std::cerr<<std::endl;
+        // dataTosend = String(wallLeft()) + " " + String(wallFront()) + " " + String(wallRight()) + "\n" ; 
+
+         Serial.print((int)curr_c);
+         Serial.print(" ");
+         Serial.println((int)curr_r);
+         Serial.print(wallLeft());
+         Serial.print(" ");
+         Serial.print(wallFront());
+         Serial.print(" ");
+         Serial.println(wallRight());
 
         char d = curr_dir, w = 0;
         do {
@@ -344,7 +383,9 @@ void exploreToCenter () {
 
         if ((next_r == curr_r) && (next_c == curr_c))
             flood ();
-        else 
+        else
+            while(!Serial.available());
+        Serial.read();
             moveTo (next_r, next_c);
     }
 }
@@ -356,10 +397,10 @@ void exploreToStart()
         //log("start: " + tostr(dis[curr_r][curr_c]));
         //log(String((int)curr_r)+" "+String((int)curr_c )+" "+String((int)curr_dir));
         bool walls [4];
-        /*walls [0] = wallFront();
+        walls [0] = wallFront();
         walls [1] = wallRight();
         //walls [2] = wallBack(); wall back isn't working
-        walls [3] = wallLeft();*/
+        walls [3] = wallLeft();
         if(curr_r == 16 && curr_c == 1 && curr_dir == 0) walls[2] = 1;
         else walls[2] = 0;
         //for(int i=0;i<4;i++) std::cerr<<walls[i]<<" ";
@@ -432,23 +473,56 @@ int theoreticalHeading = 0;
 inline void READIRS()
 {
  // implement reading irs
+ 
   int i = 0;
     for (const auto &[trig_pin, echo_pin] : ir_array) {
-        digitalWrite(trig_pin, LOW);
-        int dark_val = analogRead(echo_pin);
-        u_long a = micros();
-        digitalWrite(trig_pin, HIGH);
-        delayMicroseconds(5);
-        int lit_val = analogRead(echo_pin);
-        digitalWrite(trig_pin, LOW);
-        u_long b = micros();
-        //delay(100);
-        Serial.print(String(val)+" ");
-        readings[i] = lit_val - dark_val;
+        int lit_val = 0, dark_val = 0;
+        for (int j = 0; j < 5; j ++) {
+            digitalWrite(trig_pin, LOW);
+            dark_val += analogRead(echo_pin);
+            // u_long a = micros();
+            digitalWrite(trig_pin, HIGH);
+            delayMicroseconds(5);
+            lit_val += analogRead(echo_pin);
+            digitalWrite(trig_pin, LOW);
+            // u_long b = micros();
+            //delay(100);
+        }
+        //Serial.print(String((lit_val - dark_val)/5)+" ");
+        readings[i] = (lit_val - dark_val) / 5;
         i++;
     }
-    Serial.println();
+    //Serial.println();
 
+}
+
+
+bool wallFront()
+{
+    for(int i=0;i<10;i++)
+    {
+        READIRS();
+        if(readings[0] > frontleftThresh && readings[1] > frontrightThresh) return 1;
+    }
+    return 0;
+}
+bool wallRight()
+{
+    for(int i=0;i<10;i++)
+    {
+        READIRS();
+        if(readings[3] > rightThresh)return 1;
+    }
+    return 0; 
+}
+bool wallLeft()
+{
+    for(int i=0;i<10;i++)
+    {
+        READIRS();
+        if(readings[2] > leftThresh) return 1;
+    }
+    return 0;
 }
 
 
@@ -458,19 +532,21 @@ inline void READIRS()
 void turn(double angle)
 {
   getPosition();
-  double desiredAngle = yaw + angle;
+  double desiredAngle = theoreticalHeading + angle;
   double error = angleDiff(yaw,desiredAngle);
   bool direction = ( error > 0 ? true:false ); // true -> turn right | false -> turn left                      
   double errorPrev = error;
   double totalerror = 0;
   unsigned long t = millis();
 
-  double kp = 2; // Kp and Kd will be set with testing
-  double kd = -5;
+  double kp = 1.5; // Kp and Kd will be set with testing
+  double kd = -7;
 
   double speed = 100;
 
-  while(abs(error) > 2|| fabs(getRate()) > 1.2)
+  int counter=0;
+
+  while(abs(error) > 2 || fabs(getRate()) > 0.5)
   {
     getPosition();
     error = angleDiff(yaw,desiredAngle);
@@ -497,6 +573,8 @@ void turn(double angle)
     errorPrev = error;
     totalerror += error;
     t = millis();
+    if(abs(getRate()) < 0.1 )counter++;
+    if(counter >=40)break;
 
   }
   getPosition();
@@ -505,18 +583,18 @@ void turn(double angle)
   analogWrite(leftMotorBackward ,  0);
   analogWrite(rightMotorForward ,  0);
   analogWrite(rightMotorBackward , 0);
-
-
+  theoreticalHeading += angle;
+  theoreticalHeading = (theoreticalHeading + 360)%360;
 }
 //3 -1
 //04 -1
 
 
 //2 -1
-//
-void moveF(double tiles = 16)// if you want to move tile by tile use moveF(1), if you want continuous use moveF();
+//-1.2 1.5
+bool moveF(double tiles = 16)// if you want to move tile by tile use moveF(1), if you want continuous use moveF();
 {                            // just need to add to make it stop using the irs            
-  double desiredDistance = tiles * 20; // el tile el mafrood 18cm, bas we found it would move slightly less than what we wanted, fa we increased it
+  double desiredDistance = tiles * 18; // el tile el mafrood 18cm, bas we found it would move slightly less than what we wanted, fa we increased it
 
   double startX = xPosition, startY = yPosition;
   double startYaw = theoreticalHeading;
@@ -536,18 +614,28 @@ void moveF(double tiles = 16)// if you want to move tile by tile use moveF(1), i
   double errorA = angleDiff(yaw,startYaw);
   double errorAPrev = errorA;
 
+
+  //double errorTicks = 0;
+  double errorTicksPrev = 0;
+
   unsigned long t = millis();
 
-  double Kpl = 2; // KD AND KP are changed with testing 
+  double Kpl = 3; // KD AND KP are changed with testing 
   double Kdl = -1;
 
-  double Kpa = -1.2;
-  double Kda = 1.5;
+  double Kpa = -3;  // changed 
+  double Kda = 1;   // decreased 
+
+  double KpTicks = 0.0;
+  double KdTicks = 0.0;
+  double kiTicks = 0.0 ;
+
 
   double speedl;
   double speeda;
+  double speedTicks = 0;
   double speed;
-  ////Serial.println(errorL);
+  //Serial.println(errorL);
 
   //unsigned long  timeout_timer = millis();
     char timeout_ctr = 0;
@@ -557,7 +645,11 @@ void moveF(double tiles = 16)// if you want to move tile by tile use moveF(1), i
     //READIRS();
     rightTicks = rightEncoder.position() - startRight;
     leftTicks = leftEncoder.position() - startLeft;
-    unsigned long deltaTicks = leftTicks - rightTicks;
+    unsigned long deltaTicks = rightTicks - leftTicks;
+    // static double integralval = 0 ;  
+    // if (fabs(integralval) > 255)
+    //     integralval += kiTicks*(deltaTicks - errorTicksPrev)*(millis() - t) ; 
+    // speedTicks = KpTicks*deltaTicks + KdTicks * (deltaTicks - errorTicksPrev)/(millis() - t)  + integralval;
 
     getPosition();
     errorL = desiredDistance - calculateDistance(startX,startY);
@@ -566,6 +658,9 @@ void moveF(double tiles = 16)// if you want to move tile by tile use moveF(1), i
     
     speedl = Kpl*errorL + Kdl*(errorL - errorLPrev) / (millis() - t);
     speeda = Kpa*errorA + Kda*getRate() ;
+
+    
+
     direction = ( speedl >=0 ? true:false );
 
     //Serial.print(errorL);
@@ -580,14 +675,16 @@ void moveF(double tiles = 16)// if you want to move tile by tile use moveF(1), i
 
     Serial.print(" ");
 
-    analogWrite(leftMotorForward , direction * abs(fixSpeed(speedl - speeda  + (readings[2] > 1200)*20 ))); // might change the +- signs here
-    analogWrite(leftMotorBackward , (!direction) * abs(fixSpeed(speedl - speeda + (readings[2] > 1200)*20 )));              // also might add a constrain fa lw el speed less/greater than the limits, it doesn't overflow
+    analogWrite(leftMotorForward , direction * abs(fixSpeed(speedl - speeda ))); // might change the +- signs here
+    analogWrite(leftMotorBackward , (!direction) * abs(fixSpeed(speedl - speeda )));              // also might add a constrain fa lw el speed less/greater than the limits, it doesn't overflow
 
-    analogWrite(rightMotorForward , direction * abs(fixSpeed(speedl + speeda + (readings[3] > 1200)*20 ) ));
-    analogWrite(rightMotorBackward , (!direction) * abs(fixSpeed(speedl + speeda + (readings[3] > 1200)*20) )); 
+    analogWrite(rightMotorForward , direction * abs(fixSpeed(speedl + speeda  )));
+    analogWrite(rightMotorBackward , (!direction) * abs(fixSpeed(speedl + speeda  ))); 
 
     errorLPrev = errorL;
     errorAPrev = errorA; 
+    errorTicksPrev = deltaTicks;
+
     t = millis();
     //if(t - startTime > 5000)
     if(fabs(getLin()) < 0.1) {
@@ -600,11 +697,13 @@ void moveF(double tiles = 16)// if you want to move tile by tile use moveF(1), i
   Serial.print("Done ");
 //   Serial.println(calculateDistance(startX,startY));
     Serial.println(errorL);
-  analogWrite(leftMotorForward ,   0);
-  analogWrite(leftMotorBackward ,  0);
-  analogWrite(rightMotorForward ,  0);
-  analogWrite(rightMotorBackward , 0);
-
+    
+  analogWrite(leftMotorForward   ,  0);
+  analogWrite(leftMotorBackward  ,  0);
+  analogWrite(rightMotorForward  ,  0);
+  analogWrite(rightMotorBackward ,  0);
+  if(timeout_ctr  >= 50)return 0;
+  return 1;
 
 }
 
@@ -687,12 +786,43 @@ inline void getPosition()
 
 
 
+// String generateHTML() {
+ 
+//   String html = "<!DOCTYPE html><html>";
+//   html += "<head><meta http-equiv='refresh' content='2'/>";
+//   html += "<title>ESP32 Sensor Debug</title></head>";
+//   html += "<body><h1>ESP32 Sensor Data</h1>";
+//   html += "<p>Sensor Value: " + dataTosend + "</p>";
+//   html += "</body></html>";
 
+//   return html;
+// }
+
+// void handleRoot() {
+//   server.send(200, "text/html", generateHTML());
+// }
 
 
 
 void setup() {
-  // put your setup code here, to run once:
+//   // put your setup code here, to run once:
+     Serial.begin(115200);
+//   delay(1000);
+
+//   WiFi.begin(ssid, password);
+//   Serial.print("Connecting to WiFi");
+//   while (WiFi.status() != WL_CONNECTED) {
+//     delay(500);
+//     Serial.print(".");
+//   }
+
+//   Serial.println("\nWiFi connected.");
+//   Serial.print("IP address: ");
+//   Serial.println(WiFi.localIP());
+
+//   server.on("/", handleRoot);
+//   server.begin();
+//   Serial.println("HTTP server started");
 
     analogWriteResolution(leftMotorForward, 10);
     analogWriteResolution(leftMotorBackward, 10);
@@ -707,7 +837,7 @@ void setup() {
   
   //delay(5000);
 
-  Serial.begin(115200);
+  // Serial.begin(115200);
   initialise(c_q,MAX_H * MAX_W); //queue initialisation for storing row and coloumn
   initialise(r_q,MAX_H* MAX_W);
   update_mms_maze();
@@ -752,36 +882,68 @@ void loop() {
     // moveF(1);
     //turn(90);
     getPosition();
-    analogWrite(leftMotorForward  , 0);
-    analogWrite(leftMotorBackward , 0);
-    analogWrite(rightMotorForward , 0);
-    analogWrite(rightMotorBackward, 0);
+    // analogWrite(leftMotorForward  , 0);
+    // analogWrite(leftMotorBackward , 0);
+    // analogWrite(rightMotorForward , 0);
+    // analogWrite(rightMotorBackward, 0);
     // delay(2000);
     // Serial.print(leftEncoder.position());
     // Serial.print(" ");
     // Serial.println(rightEncoder.position());
     //Serial.println(getRate());
-    READIRS();
-    if(readings[3] < 290)
-    {
-        turn(90);
-        delay(500);
-        theoreticalHeading += 90;
-        theoreticalHeading %= 360;
-        moveF(1);
-    }
-    else if (readings[0] < 200 || readings[1] < 200)
-    {
-        moveF(1);
-    }
-    else
-    {
-        turn(-90);
-        theoreticalHeading -= 90;
-        theoreticalHeading = (theoreticalHeading + 360 )%360;
+    // READIRS();
+    // if(readings[3] < 220)
+    // {
+    //     turn(90);
+    //     delay(500);
+    //     moveF(1);
+    // }
+    // else if (readings[1] < 300)
+    // {
+    //     moveF(1);
+    // }
+    // else
+    // {
+    //     turn(-90);
 
-    }
-    delay(500);
+    // }
+    // delay(500);
     // moveF(1);
     // delay(1000);
+    //getPosition();
+    // Serial.print(xPosition);
+    // Serial.print(" ");
+    // Serial.print(yPosition);
+    // Serial.print(" ");
+    // Serial.println(yaw);
+    // delay(100);
+    READIRS();
+
+
+    // moveF(2);
+    // delay(100);
+    // turn(180);
+    // delay(100);
+    // moveF(2);
+    // delay(100);
+    // turn(-180);
+    // delay(100);
+
+    // Serial.print(wallLeft());
+    // Serial.print(" ");
+    // Serial.print(wallFront());
+    // Serial.print(" ");
+    // Serial.println(wallRight());
+
+    while(1) {
+    // server.handleClient();
+    flood();
+    previous_run = current_run;
+    exploreToCenter ();
+    current_run = dis[16][1];
+    if(current_run != 0 && current_run == previous_run) break;
+    flood(0);
+    exploreToStart ();
+    //log("done!!!! The best run is "+ current_run);
+    }
 }
