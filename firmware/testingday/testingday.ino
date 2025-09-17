@@ -434,15 +434,17 @@ inline void READIRS()
  // implement reading irs
   int i = 0;
     for (const auto &[trig_pin, echo_pin] : ir_array) {
+        digitalWrite(trig_pin, LOW);
+        int dark_val = analogRead(echo_pin);
         u_long a = micros();
         digitalWrite(trig_pin, HIGH);
         delayMicroseconds(5);
-        int val = analogRead(echo_pin);
+        int lit_val = analogRead(echo_pin);
         digitalWrite(trig_pin, LOW);
         u_long b = micros();
         //delay(100);
         Serial.print(String(val)+" ");
-        readings[i] = val;
+        readings[i] = lit_val - dark_val;
         i++;
     }
     Serial.println();
