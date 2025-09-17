@@ -40,6 +40,8 @@ pcnt_unit_handle_t pcnt_handler = nullptr;
 
 
 void setup() {
+
+    Serial.begin(115200);
     pcnt_unit_config_t unit_config = {.low_limit = INT16_MIN, .high_limit = INT16_MAX};
     unit_config.flags.accum_count = 1;
 
