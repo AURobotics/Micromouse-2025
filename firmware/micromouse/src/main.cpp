@@ -4,12 +4,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-// #include "BNO055.h"
 #include "IR.h"
 #include "Motor.h"
 #include "Wire.h"
-// #include "ESP32Encoder.h"
-#include "RotaryEncoderPCNT.h"
 
 #include <Adafruit_BNO055.h>
 #include <Adafruit_Sensor.h>
@@ -53,10 +50,8 @@ const auto left_motor = Motor(MOTOR_PINS::IN1, MOTOR_PINS::IN2);
 //     .z_sign = remap_sign::negative,
 // };
 
-// auto bno = imu(16, 21, I2C_NUM_0);
-Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x29, &Wire);
 
-int readings[6];
+// int readings[6];
 
 float normalize_angle(const float angle, const float init_angle) {
     float ret = fmod(angle + 180 - init_angle, 360.0f);
@@ -69,38 +64,7 @@ float normalize_angle(const float angle, const float init_angle) {
 pcnt_unit_handle_t pcnt_handler = nullptr;
 
 
-RotaryEncoderPCNT rightEncoder(7, 8);
-RotaryEncoderPCNT leftEncoder(10, 9);
-double previousRight;
-double previousLeft;
-
-int left_revolutions, prev_left_revolutions;
-int right_revolutions, prev_right_revolutions;
-
-
-double xPosition = 0, yPosition = 0;
-double yaw = 0;
-int theoreticalHeading = 0;
-
-
 void setup() {
-    Serial.begin(115200);
-    // bno.setup(true);
-    Wire.begin(21, 16);
-    bno = Adafruit_BNO055(55, 0x29, &Wire);
-    if (!bno.begin()) // lol
-    {
-        // Serial.println("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
-        while (1)
-            ;
-    }
-    // delay(1000);
-    bno.setExtCrystalUse(true);
-
-
-    rightEncoder.setPosition(0);
-    leftEncoder.setPosition(0);
-    // bno.remap_axis(bno_axis_config);
     pcnt_unit_config_t unit_config = {.low_limit = INT16_MIN, .high_limit = INT16_MAX};
     unit_config.flags.accum_count = 1;
 
@@ -148,24 +112,7 @@ void loop() {
     int counter = 0;
     pcnt_unit_get_count(pcnt_handler, &counter);
     Serial.println(counter);
-    // Serial.println(counterbno.relative_heading());
-    // delay(100);
-    // right_motor.move(100,static_cast<Direction>(1));
-    //  Serial.print(leftEncoder.position());
-    //  Serial.print(" ");
-    //  Serial.println(rightEncoder.position());
-    // Serial.println(bno.gyro().x());
-    //  getPosition();
-    //  Serial.print(xPosition);
-    //  Serial.print(" ");
-    //  Serial.print(yPosition);
-    //  Serial.print(" ");
-    //  Serial.println(yaw);
-    //  delay(100);
-    // turn(-90);
-    //  moveF(1);
-    //  delay(2000);
-    //  Serial.println(yaw);
+    delay(100);
 }
 
 
@@ -225,15 +172,14 @@ inline void getPosition() {
     double encoderDelta =
         (rightDistance - leftDistance) / distance_between_wheels; // won't use that , and this is in radian
     // double bnoDelta = (bno.relative_heading() - yaw);
-    double bnoDelta = (getOrientationX() - yaw);
-    double deltaAngle = bnoDelta; // add the encoder delta to it if you want
+    double bnoDelta = getOrientationX() - yaw;
+    double deltaAngle = bnoDelta; // add the encoder delta to it if you want, Encoder angle is bad
 
     yPosition += distance * cos((yaw + deltaAngle / 2) * PI / 180);
     xPosition += distance * sin((yaw + deltaAngle / 2) * PI / 180);
     yaw += deltaAngle; // or yaw = getOrientationX();
 
     // yaw = (yaw+360)%360;
-
     previousLeft = leftRevolutions;
     previousRight = rightRevolutions;
 }
