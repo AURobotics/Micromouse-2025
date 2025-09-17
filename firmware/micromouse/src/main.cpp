@@ -40,7 +40,7 @@ pcnt_unit_handle_t pcnt_handler = nullptr;
 
 
 void setup() {
-
+    setCpuFrequencyMhz(240);
     Serial.begin(115200);
     pcnt_unit_config_t unit_config = {.low_limit = INT16_MIN, .high_limit = INT16_MAX};
     unit_config.flags.accum_count = 1;
@@ -81,7 +81,6 @@ void setup() {
     ESP_ERROR_CHECK(pcnt_unit_enable(pcnt_handler));
     ESP_ERROR_CHECK(pcnt_unit_clear_count(pcnt_handler));
     ESP_ERROR_CHECK(pcnt_unit_start(pcnt_handler));
-
 }
 
 void loop() {
