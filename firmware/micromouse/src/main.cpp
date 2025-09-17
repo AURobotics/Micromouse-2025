@@ -72,22 +72,22 @@ void setup() {
 
     constexpr pcnt_chan_config_t chan_a_config = {
         .edge_gpio_num = static_cast<uint8_t>(ENC_PINS::PA_1),
-        .level_gpio_num = static_cast<uint8_t>(ENC_PINS::PA_1),
+        .level_gpio_num = static_cast<uint8_t>(ENC_PINS::PB_1),
     };
 
     pcnt_channel_handle_t chan_a_handle = nullptr;
     ESP_ERROR_CHECK(pcnt_new_channel(pcnt_handler, &chan_a_config, &chan_a_handle));
 
     constexpr pcnt_chan_config_t chan_b_config = {
-        .edge_gpio_num = 4,
-        .level_gpio_num = 2,
+        .edge_gpio_num = static_cast<uint8_t>(ENC_PINS::PB_1),
+        .level_gpio_num = static_cast<uint8_t>(ENC_PINS::PA_1),
     };
 
     pcnt_channel_handle_t chan_b_handle = nullptr;
     ESP_ERROR_CHECK(pcnt_new_channel(pcnt_handler, &chan_b_config, &chan_b_handle));
 
-    gpio_pullup_en(GPIO_NUM_0);
-    gpio_pullup_en(GPIO_NUM_1);
+    gpio_pullup_en(static_cast<gpio_num_t>(ENC_PINS::PA_1));
+    gpio_pullup_en(static_cast<gpio_num_t>(ENC_PINS::PB_1));
 
     //supposedly this setup is correct
     ESP_ERROR_CHECK(pcnt_channel_set_edge_action(
@@ -116,229 +116,3 @@ void loop() {
 }
 
 
-double fixSpeed(double speed) {
-    int maxx = 100;
-    speed = constrain(speed, -maxx, maxx);
-    if (abs(speed) < 5)
-        return 0;
-    if (speed > 0)
-        return map(speed, 0, maxx, 45, maxx);
-    if (speed < 0)
-        return map(speed, -maxx, 0, -maxx, -45);
-    return 0;
-}
-
-inline double calculateDistance(double x, double y) { return sqrt(pow(x - xPosition, 2) + pow(y - yPosition, 2)); }
-
-double angleDiff(double start, double goal) {
-    // goal  = (goal + 360) % 360.0;
-    // start += 360;
-    // goal += 360;
-    goal += (goal > 360 ? -360 : 0);
-    goal += (goal < 0 ? 360 : 0);
-    double angle = goal - start;
-    double angle2 = angle + (angle < 0 ? 360 : -360);
-    return (abs(angle) < abs(angle2) ? angle : angle2);
-}
-
-
-inline float getOrientationX() {
-    sensors_event_t orientationData;
-    bno.getEvent(&orientationData, Adafruit_BNO055::VECTOR_EULER);
-    return orientationData.orientation.x;
-}
-
-inline float getRate() {
-    sensors_event_t gyroData;
-    bno.getEvent(&gyroData, Adafruit_BNO055::VECTOR_GYROSCOPE);
-    return gyroData.gyro.x; // might change it to gyro.z msh x , haven't tested yet
-                            // -----------------------------------------------------------------------IMPORTANT
-}
-
-inline float getLin() {
-    sensors_event_t linearAccelData;
-    bno.getEvent(&linearAccelData, Adafruit_BNO055::VECTOR_LINEARACCEL);
-    return linearAccelData.acceleration.z;
-}
-
-inline void getPosition() {
-    double leftRevolutions = 1.0 * leftEncoder.position() / ticksperlafa;
-    double rightRevolutions = 1.0 * rightEncoder.position() / ticksperlafa;
-
-    double leftDistance = (leftRevolutions - previousLeft) * circumference;
-    double rightDistance = (rightRevolutions - previousRight) * circumference;
-    double distance = (leftDistance + rightDistance) / 2;
-
-    double encoderDelta =
-        (rightDistance - leftDistance) / distance_between_wheels; // won't use that , and this is in radian
-    // double bnoDelta = (bno.relative_heading() - yaw);
-    double bnoDelta = getOrientationX() - yaw;
-    double deltaAngle = bnoDelta; // add the encoder delta to it if you want, Encoder angle is bad
-
-    yPosition += distance * cos((yaw + deltaAngle / 2) * PI / 180);
-    xPosition += distance * sin((yaw + deltaAngle / 2) * PI / 180);
-    yaw += deltaAngle; // or yaw = getOrientationX();
-
-    // yaw = (yaw+360)%360;
-    previousLeft = leftRevolutions;
-    previousRight = rightRevolutions;
-}
-
-// 2 -5
-void turn(double angle) {
-    getPosition();
-    double desiredAngle = yaw + angle;
-    double error = angleDiff(yaw, desiredAngle);
-    bool direction = (error > 0 ? true : false); // true -> turn right | false -> turn left
-    double errorPrev = error;
-    double totalerror = 0;
-    unsigned long t = millis();
-
-    double kp = 2; // Kp and Kd will be set with testing
-    double kd = -5;
-
-    double speed = 100;
-
-    // while(abs(error) > 2|| fabs(bno.gyro().x()) > 1)
-    while (abs(error) > 2 || fabs(getRate()) > 1) {
-        getPosition();
-        error = angleDiff(yaw, desiredAngle);
-
-        Serial.print(desiredAngle);
-        Serial.print(" ");
-        Serial.print(yaw);
-        Serial.print(" ");
-        Serial.println(error);
-        // speed = kp * error + kd * bno.gyro().x();
-        speed = kp * error + kd * getRate();
-        speed = fixSpeed(speed);
-        // //Serial.print(" ");
-        // //Serial.print(speed);
-        // //Serial.print(" ");
-        // //Serial.println(getRate());
-        direction = (speed > 0 ? true : false);
-        left_motor.move(abs(speed), static_cast<Direction>(!direction));
-        right_motor.move(abs(speed), static_cast<Direction>(direction));
-        // analogWrite(leftMotorForward , (direction)  * abs(speed) );
-        // analogWrite(leftMotorBackward , (!direction) * abs(speed));
-
-        // analogWrite(rightMotorForward , (!direction) * abs(speed));
-        // analogWrite(rightMotorBackward , (direction)  * abs(speed));
-
-
-        errorPrev = error;
-        totalerror += error;
-        t = millis();
-    }
-    getPosition();
-    // Serial.println(yaw);
-    //   analogWrite(leftMotorForward ,   0);
-    //   analogWrite(leftMotorBackward ,  0);
-    //   analogWrite(rightMotorForward ,  0);
-    //   analogWrite(rightMotorBackward , 0);
-    left_motor.move(0, Direction::STOP);
-    right_motor.move(0, Direction::STOP);
-}
-
-
-// 2 -1
-//-1.2 1.5
-void moveF(double tiles = 16) // if you want to move tile by tile use moveF(1), if you want continuous use moveF();
-{ // just need to add to make it stop using the irs
-    double desiredDistance = tiles *
-        20; // el tile el mafrood 18cm, bas we found it would move slightly less than what we wanted, fa we increased it
-
-    double startX = xPosition, startY = yPosition;
-    double startYaw = theoreticalHeading;
-
-    unsigned long startRight = rightEncoder.position();
-    unsigned long startLeft = leftEncoder.position();
-    unsigned long rightTicks, leftTicks;
-    unsigned long startTime = millis();
-
-    // for the distance
-    double errorL = desiredDistance - calculateDistance(startX, startY);
-    double errorLPrev = errorL;
-
-    bool direction = (errorL >= 0 ? true : false); // true -> forward, false -> backward
-
-    // to keep moving staight
-    double errorA = angleDiff(yaw, startYaw);
-    double errorAPrev = errorA;
-
-    unsigned long t = millis();
-
-    double Kpl = 2; // KD AND KP are changed with testing
-    double Kdl = -1;
-
-    double Kpa = -1.2;
-    double Kda = 1.5;
-
-    double speedl;
-    double speeda;
-    double speed;
-    ////Serial.println(errorL);
-
-    // unsigned long  timeout_timer = millis();
-    char timeout_ctr = 0;
-
-    while ((abs(errorL) > 0.2) && timeout_ctr < 50) // this 1 might change
-    {
-        // READIRS();
-        rightTicks = rightEncoder.position() - startRight;
-        leftTicks = leftEncoder.position() - startLeft;
-        unsigned long deltaTicks = leftTicks - rightTicks;
-
-        getPosition();
-        errorL = desiredDistance - calculateDistance(startX, startY);
-        errorA = angleDiff(yaw, startYaw);
-
-
-        speedl = Kpl * errorL + Kdl * (errorL - errorLPrev) / (millis() - t);
-        speeda = Kpa * errorA + Kda * getRate();
-        direction = (speedl >= 0 ? true : false);
-
-        // Serial.print(errorL);
-        // Serial.print(" ");
-        Serial.print(yaw);
-        Serial.print(" ");
-        // Serial.print(speedl);
-        Serial.print(fixSpeed(speedl - speeda));
-        Serial.print(" ");
-        // Serial.println(speeda);
-        Serial.print(fixSpeed(speedl + speeda));
-
-        Serial.print(" ");
-
-        // analogWrite(leftMotorForward , direction * abs(fixSpeed(speedl - speeda  + (readings[2] > 1200)*20 ))); //
-        // might change the +- signs here analogWrite(leftMotorBackward , (!direction) * abs(fixSpeed(speedl - speeda +
-        // (readings[2] > 1200)*20 )));
-        left_motor.move(abs(fixSpeed(speedl - speeda + (readings[2] > 1200) * 20)), static_cast<Direction>(!direction));
-
-
-        // analogWrite(rightMotorForward , direction * abs(fixSpeed(speedl + speeda + (readings[3] > 1200)*20 ) ));
-        // analogWrite(rightMotorBackward , (!direction) * abs(fixSpeed(speedl + speeda + (readings[3] > 1200)*20) ));
-        right_motor.move(abs(fixSpeed(speedl + speeda + (readings[3] > 1200) * 20)),
-                         static_cast<Direction>(!direction));
-
-        errorLPrev = errorL;
-        errorAPrev = errorA;
-        t = millis();
-        // if(t - startTime > 5000)
-        if (fabs(getLin()) < 0.1) {
-            // timeout_timer = millis();
-            timeout_ctr++;
-        }
-        Serial.println(getLin());
-    }
-
-    Serial.print("Done ");
-    //   Serial.println(calculateDistance(startX,startY));
-    Serial.println(errorL);
-    //   analogWrite(leftMotorForward ,   0);
-    //   analogWrite(leftMotorBackward ,  0);
-    //   analogWrite(rightMotorForward ,  0);
-    //   analogWrite(rightMotorBackward , 0);
-    right_motor.move(0, Direction::STOP);
-    left_motor.move(0, Direction::STOP);
-}
