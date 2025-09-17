@@ -8,24 +8,6 @@
 #include "Motor.h"
 #include "Wire.h"
 
-#include <Adafruit_BNO055.h>
-#include <Adafruit_Sensor.h>
-#include <utility/imumaths.h>
-
-
-#define ticksperlafa 1400
-#define circumference 10.681
-#define distance_between_wheels 9
-// #define PI 3.141592653589
-
-
-inline void getPosition(); // odom
-inline float getOrientationX();
-inline float getRate();
-void moveF(double tiles);
-void turn(double angle);
-double fixSpeed(double speed);
-
 
 constexpr IR front_left_ir = {36, ADC_PINS::ADC1_0};
 constexpr IR front_right_ir = {33, ADC_PINS::ADC1_5};
@@ -53,13 +35,6 @@ const auto left_motor = Motor(MOTOR_PINS::IN1, MOTOR_PINS::IN2);
 
 // int readings[6];
 
-float normalize_angle(const float angle, const float init_angle) {
-    float ret = fmod(angle + 180 - init_angle, 360.0f);
-    if (ret < 0)
-        ret += 360;
-    ret -= 180;
-    return ret * -1;
-}
 
 pcnt_unit_handle_t pcnt_handler = nullptr;
 
@@ -105,7 +80,6 @@ void setup() {
     ESP_ERROR_CHECK(pcnt_unit_clear_count(pcnt_handler));
     ESP_ERROR_CHECK(pcnt_unit_start(pcnt_handler));
 
-    delay(2000); // don't delete this , the bno doesn't work at first
 }
 
 void loop() {
