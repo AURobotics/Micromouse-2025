@@ -7,7 +7,6 @@ void IR::setup() const {
     pinMode(static_cast<uint8_t>(echo_pin), INPUT);
 }
 
-// TODO: Enter a critical section
 uint16_t IR::read() {
     digitalWrite(this->trig_pin, HIGH);
     delayMicroseconds(5);
