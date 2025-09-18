@@ -1,8 +1,6 @@
 #pragma once
 #include "Arduino.h"
-
-enum class MOTOR_PINS : uint8_t { IN1 = 13, IN2 = 14, IN3 = 15, IN4 = 17 };
-enum class ENC_PINS : uint8_t {PA_1 = 7, PB_1 = 8, PA_2 = 10, PB_2 = 9};
+#include "pins.h"
 
 enum class Direction : uint8_t { FORWARD = 0, BACKWARD = 1, STOP = 2 };
 

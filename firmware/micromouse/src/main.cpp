@@ -7,6 +7,7 @@
 #include "IR.h"
 #include "Motor.h"
 #include "Wire.h"
+#include "pins.h"
 
 
 IR front_left_ir = {36, ADC_PINS::ADC1_0};
@@ -32,12 +33,15 @@ const auto left_motor = Motor(MOTOR_PINS::IN1, MOTOR_PINS::IN2);
 //     .z_sign = remap_sign::negative,
 // };
 
+// DO NOT USE IR::read function in your PID. read the value from the IR array
+uint16_t ir_readings[6] = {};
 
 [[noreturn]]
 void IR_task(void* pvParameters) {
     uint8_t i = 0;
     for (;;) {
-        Serial.print(String(ir_array[i].read()) + String(" "));
+        ir_readings[i] = ir_array[i].read();
+        Serial.print(String(ir_readings[i]) + String(" "));
         i = (i + 1) % 6;
         if (i == 5)
             Serial.println("");

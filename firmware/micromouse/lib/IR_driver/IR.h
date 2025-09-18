@@ -1,16 +1,17 @@
 #pragma once
+#include <queue>
 #include "Arduino.h"
-#include<queue>
-#include "stdint-gcc.h"
-#include <esp_intr_types.h>
-
-enum class ADC_PINS : uint8_t { ADC1_0 = 1, ADC1_1, ADC1_2, ADC1_3, ADC1_4, ADC1_5 };
+#include "pins.h"
 
 struct IR {
     IR(const uint8_t trig_pin, const ADC_PINS pin) : trig_pin(trig_pin), echo_pin(pin) {}
 
     void setup() const;
     uint16_t read();
+    void calibrate();
+
+public:
+    uint16_t m_threshold = 0;
 
 private:
     uint8_t trig_pin;
