@@ -31,5 +31,5 @@ void IR::calibrate() {
     }
     m_threshold /= 100;
     digitalWrite(this->trig_pin, LOW);
-    m_threshold = static_cast<uint16_t>(m_threshold * 1.1f);
+    m_threshold = static_cast<uint16_t>(static_cast<float>(m_threshold) * 0.9f);//0.9 is a safety margin for wall or no wall
 }

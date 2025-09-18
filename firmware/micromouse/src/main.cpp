@@ -45,13 +45,22 @@ void IR_task(void* pvParameters) {
         i = (i + 1) % 6;
         if (i == 5)
             Serial.println("");
-        vTaskDelay(5);
+        vTaskDelay(2);
     }
 }
 
 void setup() {
+    pinMode(static_cast<uint8_t>(BTN_PINS::BTN1), INPUT_PULLUP);
+
     setCpuFrequencyMhz(240);
     Serial.begin(115200);
+
+    if (!digitalRead(static_cast<uint8_t>(BTN_PINS::BTN1))) { // if BTN_1 is pressed, calibrate IRs.
+        for (auto& ir : ir_array) {
+            ir.calibrate();
+        }
+    }
+
     // clang-format off
     xTaskCreate(IR_task,
         "IR_task",
@@ -60,6 +69,12 @@ void setup() {
         configMAX_PRIORITIES - 1,
         nullptr);
     // clang-format on
+
+
+    //this is how you compare a value to IR
+    if (ir_readings[5] >= ir_array[5].m_threshold) {
+
+    }
 }
 
 void loop() {
