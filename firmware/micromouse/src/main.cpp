@@ -55,11 +55,13 @@ void setup() {
     setCpuFrequencyMhz(240);
     Serial.begin(115200);
 
-    if (!digitalRead(static_cast<uint8_t>(BTN_PINS::BTN1))) { // if BTN_1 is pressed, calibrate IRs.
-        for (auto& ir : ir_array) {
+    if (!digitalRead(static_cast<uint8_t>(BTN_PINS::BTN1))) // if BTN_1 is pressed, calibrate IRs.
+        for (auto& ir : ir_array)
             ir.calibrate();
-        }
-    }
+
+
+    for (auto& ir : ir_array)
+        ir.setup();
 
     // clang-format off
     xTaskCreate(IR_task,
