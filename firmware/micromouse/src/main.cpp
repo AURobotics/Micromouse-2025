@@ -9,13 +9,13 @@
 #include "Wire.h"
 
 
-constexpr IR front_left_ir = {36, ADC_PINS::ADC1_0};
-constexpr IR front_right_ir = {33, ADC_PINS::ADC1_5};
-constexpr IR left_ir = {35, ADC_PINS::ADC1_2};
-constexpr IR right_ir = {18, ADC_PINS::ADC1_3};
-constexpr IR left_diagonal_ir = {40, ADC_PINS::ADC1_1};
-constexpr IR right_diagonal_ir = {34, ADC_PINS::ADC1_4};
-constexpr std::array ir_array = {front_left_ir, front_right_ir, left_ir, right_ir, left_diagonal_ir, right_diagonal_ir};
+IR front_left_ir = {36, ADC_PINS::ADC1_0};
+IR front_right_ir = {33, ADC_PINS::ADC1_5};
+IR left_ir = {35, ADC_PINS::ADC1_2};
+IR right_ir = {18, ADC_PINS::ADC1_3};
+IR left_diagonal_ir = {40, ADC_PINS::ADC1_1};
+IR right_diagonal_ir = {34, ADC_PINS::ADC1_4};
+std::array ir_array = {front_left_ir, front_right_ir, left_ir, right_ir, left_diagonal_ir, right_diagonal_ir};
 
 const auto right_motor = Motor(MOTOR_PINS::IN4, MOTOR_PINS::IN3);
 const auto left_motor = Motor(MOTOR_PINS::IN1, MOTOR_PINS::IN2);
