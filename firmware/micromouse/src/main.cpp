@@ -38,28 +38,34 @@ uint16_t ir_readings[6] = {};
 
 [[noreturn]]
 void IR_task(void* pvParameters) {
-    uint8_t i = 0;
+    // uint8_t i = 0;
     for (;;) {
-        ir_readings[i] = ir_array[i].read();
-        Serial.print(String(ir_readings[i]) + String(" "));
-        i = (i + 1) % 6;
-        if (i == 5)
-            Serial.println("");
-        vTaskDelay(2);
+        for (uint8_t i = 0; i < 6; i ++) {
+            ir_readings[i] = ir_array[i].read();
+            Serial.print(String(ir_readings[i]) + String(" "));
+            // i = (i + 1) % 6;
+            // if (i == 5)
+        }
+        Serial.println("");
+        vTaskDelay(1);
     }
 }
 
 void setup() {
-    pinMode(static_cast<uint8_t>(BTN_PINS::BTN1), INPUT_PULLUP);
+    // pinMode(static_cast<uint8_t>(BTN_PINS::BTN1), INPUT_PULLUP);
 
     setCpuFrequencyMhz(240);
     Serial.begin(115200);
 
-    if (!digitalRead(static_cast<uint8_t>(BTN_PINS::BTN1))) { // if BTN_1 is pressed, calibrate IRs.
-        for (auto& ir : ir_array) {
-            ir.calibrate();
-        }
+    for (const auto& ir : ir_array) {
+        ir.setup();
     }
+
+    // if (!digitalRead(static_cast<uint8_t>(BTN_PINS::BTN1))) { // if BTN_1 is pressed, calibrate IRs.
+    //     for (auto& ir : ir_array) {
+    //         ir.calibrate();
+    //     }
+    // }
 
     // clang-format off
     xTaskCreate(IR_task,
@@ -72,9 +78,9 @@ void setup() {
 
 
     //this is how you compare a value to IR
-    if (ir_readings[5] >= ir_array[5].m_threshold) {
+    // if (ir_readings[5] >= ir_array[5].m_threshold) {
 
-    }
+    // }
 }
 
 void loop() {
