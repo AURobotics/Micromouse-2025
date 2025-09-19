@@ -2,9 +2,9 @@
 #include "esp32-hal-timer.h"
 #include "motor_driver.h"
 
-#define SAMPLE_INTERVAL_US 1000
-#define TICKS_PER_REV (46.7 * 11)
-#define WHEEL_CIRCUMFERENCE (2 * M_PI * 4 / 100)
+#define TICKS_PER_REV 1400
+#define WHEEL_RADIUS 0.034 //in m
+#define WHEEL_CIRCUMFERENCE (2 * M_PI * WHEEL_RADIUS)
 
 hw_timer_t *Timer0_Cfg = nullptr;
 
@@ -37,13 +37,16 @@ void IRAM_ATTR Timer0_ISR() {
                   WHEEL_CIRCUMFERENCE;
 
   Serial.printf("%llu,%f,%f\n", timerReadMillis(Timer0_Cfg), lr, lf);
-
   sample_count += 1;
 }
 
 void setup() {
   Serial.begin(921600);
   Serial.flush();
+
+  right_motor.setup(Encoder_mode::FULL_QUAD);
+  left_motor.setup(Encoder_mode::FULL_QUAD);
+
   delay(5000);
   Serial.println("hi");
   Timer0_Cfg = timerBegin(1000000);

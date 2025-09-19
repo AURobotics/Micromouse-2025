@@ -1,5 +1,4 @@
 #pragma once
-#include "constants.h"
 #include "driver/ledc.h"
 #include "esp_log.h"
 #include <Arduino.h>
@@ -40,26 +39,26 @@ public:
   /**
    *
    * @param pins pins of motor
-   * @param encoder_mode encoder Mode, each mode corresponds to different
    * decoding of the encoder signal
    */
-  explicit Motor(const motor_pins_t pins,
-                 const Encoder_mode encoder_mode = Encoder_mode::FULL_QUAD)
-      : m_direction_pin_1(pins.dir1), m_direction_pin_2(pins.dir2) {
+  explicit Motor(const motor_pins_t pins)
+      : m_direction_pin_1(pins.dir1), m_direction_pin_2(pins.dir2),
+        m_encoder_pin_A(pins.pA), m_encoder_pin_B(pins.pB) {}
 
+  void setup(const Encoder_mode encoder_mode = Encoder_mode::FULL_QUAD) {
     ESP32Encoder::useInternalWeakPullResistors = puType::up;
 
     switch (encoder_mode) {
     case Encoder_mode::FULL_QUAD: {
-      m_encoder.attachFullQuad(pins.pA, pins.pB);
+      m_encoder.attachFullQuad(m_encoder_pin_A, m_encoder_pin_B);
       break;
     }
     case Encoder_mode::HALF_QUAD: {
-      m_encoder.attachHalfQuad(pins.pA, pins.pB);
+      m_encoder.attachHalfQuad(m_encoder_pin_A, m_encoder_pin_B);
       break;
     }
     case Encoder_mode::SINGLE: {
-      m_encoder.attachSingleEdge(pins.pA, pins.pB);
+      m_encoder.attachSingleEdge(m_encoder_pin_A, m_encoder_pin_B);
       break;
     }
     }
@@ -73,10 +72,10 @@ public:
     analogWrite(m_direction_pin_2, 0);
   }
 
-  /**
-   * @return rpm of object Motor
-   */
-  double rpm();
+  // /**
+  //  * @return rpm of object Motor
+  //  */
+  // double rpm();
 
   /**
    * @return absolute count of encoder ticks
@@ -90,13 +89,13 @@ public:
    */
   void move(Direction direction, uint16_t duty) const;
 
-  /**
-   * computes the motor driver input using pid controller
-   * @param target rpm setpoint
-   * @param current current rpm, retrieved from rpm() function
-   * @return rpm value to be mapped to duty cycle
-   */
-  double compute_rpm(double target, double current);
+  // /**
+  //  * computes the motor driver input using pid controller
+  //  * @param target rpm setpoint
+  //  * @param current current rpm, retrieved from rpm() function
+  //  * @return rpm value to be mapped to duty cycle
+  //  */
+  // double compute_rpm(double target, double current);
 
   /**
    * @brief holds number of ledc channels acquired
@@ -109,6 +108,9 @@ private:
   // ReSharper disable once CppDFANotInitializedField
   int8_t m_direction_pin_1;
   int8_t m_direction_pin_2;
+  int8_t m_encoder_pin_A;
+  int8_t m_encoder_pin_B;
+
   int64_t rpm_prev_pulses = 0;
   unsigned long rpm_prev_time = micros();
   double prev_rpm = 0;
