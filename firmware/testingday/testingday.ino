@@ -3,6 +3,7 @@
 #include <Adafruit_BNO055.h>
 #include <utility/imumaths.h>
 #include <RotaryEncoderPCNT.h>
+#include <EEPROM.h>
 // #include <WiFi.h>
 // #include <WebServer.h>
 
@@ -16,6 +17,13 @@
 
 // // Create a web server on port 80
 // WebServer server(80);
+
+int modeByte = 2;      //byte where the mode will be stored
+int changePin = 11;    //button that will trigger menu
+int selectorPin = 12;  //button that will be used to select mode floodfill,right,left
+bool menu = false;
+char option;
+unsigned long interTimer;
 
 inline void getPosition();  // odom
 inline float getOrientationX();
@@ -592,7 +600,7 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
   double Kdl = -1;
 
   double Kpa = -2.95;  // changed
-  double Kda = 1.2;   // decreased
+  double Kda = 1.2;    // decreased
 
   double KpTicks = 0.0;
   double KdTicks = 0.0;
@@ -666,15 +674,15 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
   //   Serial.println(calculateDistance(startX,startY));
   Serial.println(errorL);
 
-  analogWrite(rightMotorForward  ,  0);
-  analogWrite(leftMotorForward   ,  0);
-  analogWrite(leftMotorBackward  ,  0);
-  analogWrite(rightMotorBackward ,  0);
+  analogWrite(rightMotorForward, 0);
+  analogWrite(leftMotorForward, 0);
+  analogWrite(leftMotorBackward, 0);
+  analogWrite(rightMotorBackward, 0);
 
-  analogWrite(rightMotorForward  ,  255);
-  analogWrite(leftMotorForward   ,  255);
-  analogWrite(rightMotorBackward ,  255);
-  analogWrite(leftMotorBackward  ,  255);
+  analogWrite(rightMotorForward, 255);
+  analogWrite(leftMotorForward, 255);
+  analogWrite(rightMotorBackward, 255);
+  analogWrite(leftMotorBackward, 255);
   // delayMicroseconds(20);
   delay(50);
   analogWrite(leftMotorForward, 0);
@@ -773,10 +781,34 @@ inline void getPosition() {
 // }
 
 
+void toggleMenu() {
+  menu = true;
+  Serial.println("Menu");
+}
+
+void modeChooser() {
+  if (menu && millis() - interTimer > 250) {
+    option = '0' + (option - '0' + 1) % 3;
+    EEPROM.write(modeByte, option);
+    EEPROM.commit();
+    interTimer = millis();
+  }
+}
+
 
 void setup() {
   //   // put your setup code here, to run once:
   Serial.begin(115200);
+
+  EEPROM.begin(32);  // Allocate 512 bytes for EEPROM emulation
+  pinMode(selectorPin, INPUT_PULLUP);
+  pinMode(changePin, INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(changePin), toggleMenu, RISING);
+  attachInterrupt(digitalPinToInterrupt(selectorPin), modeChooser, RISING);
+  option = EEPROM.read(modeByte);
+
+
   //   delay(1000);
 
   //   WiFi.begin(ssid, password);
@@ -844,10 +876,12 @@ void setup() {
     pinMode(echo_pin, INPUT);
   }
   delay(2000);
+
+  interTimer = millis();
   //Serial.println("Done with the irs");
 
 
-  //Serial.println("Done with the setup");
+  Serial.println("Done with the setup");
 }
 
 
@@ -857,11 +891,11 @@ void loop() {
   // put your main code here, to run repeatedly:
   // moveF(1);
   //turn(90);
-  getPosition();
-  analogWrite(leftMotorForward, 0);
-  analogWrite(leftMotorBackward, 0);
-  analogWrite(rightMotorForward, 0);
-  analogWrite(rightMotorBackward, 0);
+  //   getPosition();
+  //   analogWrite(leftMotorForward, 0);
+  //   analogWrite(leftMotorBackward, 0);
+  //   analogWrite(rightMotorForward, 0);
+  //   analogWrite(rightMotorBackward, 0);
   // delay(2000);
   // analogWrite(leftMotorForward, 400);
   // analogWrite(leftMotorBackward, 0);
@@ -874,7 +908,7 @@ void loop() {
   //Serial.println(getRate());
 
 
-  READIRS();
+  //   READIRS();
   // if(readings[3] < 100)
   // {
   //     turn(90);
@@ -942,15 +976,108 @@ void loop() {
   // Serial.print(" ");
   // Serial.println(wallRight());
 
-  while(1) {
-  // server.handleClient();
-  flood();
-  previous_run = current_run;
-  exploreToCenter ();
-  current_run = dis[16][1];
-  if(current_run != 0 && current_run == previous_run) break;
-  flood(0);
-  exploreToStart ();
-  //log("done!!!! The best run is "+ current_run);
+  //   while(1) {
+  //   // server.handleClient();
+  //   flood();
+  //   previous_run = current_run;
+  //   exploreToCenter ();
+  //   current_run = dis[16][1];
+  //   if(current_run != 0 && current_run == previous_run) break;
+  //   flood(0);
+  //   exploreToStart ();
+  //   //log("done!!!! The best run is "+ current_run);
+  //   }
+
+  // option --> correspondance
+  // 0 --> floodfill
+  // 1 --> right-hand
+  // 2 --> left-hand
+  if (menu) {
+    if (option == '0') {
+      analogWrite(leftMotorForward, 100);
+      analogWrite(leftMotorBackward, 0);
+      analogWrite(rightMotorForward, 100);
+      analogWrite(rightMotorBackward, 0);
+    } else if (option == '1') {
+      analogWrite(leftMotorForward, 100);
+      analogWrite(leftMotorBackward, 0);
+      analogWrite(rightMotorForward, 0);
+      analogWrite(rightMotorBackward, 100);
+    } else if (option == '2') {
+      analogWrite(leftMotorForward, 0);
+      analogWrite(leftMotorBackward, 100);
+      analogWrite(rightMotorForward, 100);
+      analogWrite(rightMotorBackward, 0);
+    } else {
+      analogWrite(leftMotorForward, 0);
+      analogWrite(leftMotorBackward, 0);
+      analogWrite(rightMotorForward, 0);
+      analogWrite(rightMotorBackward, 0);
+      Serial.println("WTF HAPPENED?? MENU " + String(option));
+    }
+  } else {
+    if (option == '0') {
+      while (1) {
+        // server.handleClient();
+        flood();
+        previous_run = current_run;
+        exploreToCenter();
+        current_run = dis[16][1];
+        if (current_run != 0 && current_run == previous_run) break;
+        flood(0);
+        exploreToStart();
+        //log("done!!!! The best run is "+ current_run);
+      }
+    } else if (option == '1') {
+      getPosition();
+      analogWrite(leftMotorForward, 0);
+      analogWrite(leftMotorBackward, 0);
+      analogWrite(rightMotorForward, 0);
+      analogWrite(rightMotorBackward, 0);
+      delay(1000);
+      READIRS();
+      if (readings[3] < 100) {
+        turn(90);
+        // theoreticalHeading = (theoreticalHeading + 90) % 360;
+        delay(500);
+        moveF(1);
+        Serial.println("RHRIGHT");
+      } else if (readings[0] < 100) {
+        moveF(1);
+        Serial.println("RHFORWARD");
+      } else {
+        turn(-90);
+        Serial.println("RHLEFT");
+        // theoreticalHeading = (theoreticalHeading + 270) % 360;
+      }
+    } else if (option == '2') {
+      getPosition();
+      analogWrite(leftMotorForward, 0);
+      analogWrite(leftMotorBackward, 0);
+      analogWrite(rightMotorForward, 0);
+      analogWrite(rightMotorBackward, 0);
+      delay(1000);
+      READIRS();
+      if (readings[2] < 100) {
+        turn(-90);
+        // theoreticalHeading = (theoreticalHeading + 90) % 360;
+        delay(500);
+        moveF(1);
+        Serial.println("LHLEFT");
+      } else if (readings[0] < 100) {
+        moveF(1);
+        Serial.println("LHFORWARD");
+      } else {
+        turn(90);
+        Serial.println("RHLEFT");
+        // theoreticalHeading = (theoreticalHeading + 270) % 360;
+      }
+    } else {
+      analogWrite(leftMotorForward, 0);
+      analogWrite(leftMotorBackward, 0);
+      analogWrite(rightMotorForward, 0);
+      analogWrite(rightMotorBackward, 0);
+      Serial.println("WTF HAPPENED?? NO MENU " + String(option));
+    }
   }
 }
