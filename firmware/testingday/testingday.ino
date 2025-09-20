@@ -132,10 +132,10 @@ constexpr uint8_t ADC1_3 = 4;
 constexpr uint8_t ADC1_4 = 5;
 constexpr uint8_t ADC1_5 = 6;
 
-#define frontrightThresh 150
-#define frontleftThresh 150
-#define leftThresh 150
-#define rightThresh 150
+#define frontrightThresh 100
+#define frontleftThresh 100
+#define leftThresh 100
+#define rightThresh 100
 
 
 
@@ -570,7 +570,7 @@ void turn(double angle) {
 //-1.2 1.5
 bool moveF(double tiles = 16)           // if you want to move tile by tile use moveF(1), if you want continuous use moveF();
 {                                       // just need to add to make it stop using the irs
-  double desiredDistance = tiles * 18;  // el tile el mafrood 18cm, bas we found it would move slightly less than what we wanted, fa we increased it
+  double desiredDistance = tiles * 19;  // el tile el mafrood 18cm, bas we found it would move slightly less than what we wanted, fa we increased it
 
   double startX = xPosition, startY = yPosition;
   double startYaw = theoreticalHeading;
