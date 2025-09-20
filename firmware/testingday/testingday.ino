@@ -792,7 +792,7 @@ void modeChooser() {
     EEPROM.write(modeByte, option);
     EEPROM.commit();
     interTimer = millis();
-  }
+  } 
 }
 
 
@@ -807,7 +807,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(changePin), toggleMenu, RISING);
   attachInterrupt(digitalPinToInterrupt(selectorPin), modeChooser, RISING);
   option = EEPROM.read(modeByte);
-
+  if(option != '1' || option != '2' || option != '3')option = '0'; // solution ya3 5ales bas i don't really care 
 
   //   delay(1000);
 
@@ -994,6 +994,7 @@ void loop() {
   // 2 --> left-hand
   if (menu) {
     if (option == '0') {
+      Serial.println("shalawlaw");
       analogWrite(leftMotorForward, 100);
       analogWrite(leftMotorBackward, 0);
       analogWrite(rightMotorForward, 100);
@@ -1017,7 +1018,10 @@ void loop() {
     }
   } else {
     if (option == '0') {
+      Serial.println("shalshool");
+      delay(1000);
       while (1) {
+        Serial.println("while lol ");
         // server.handleClient();
         flood();
         previous_run = current_run;
