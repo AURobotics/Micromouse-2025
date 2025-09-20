@@ -370,11 +370,11 @@ void exploreToCenter() {
 
     if ((next_r == curr_r) && (next_c == curr_c))
       flood();
-    else
+    else moveTo(next_r, next_c);
     //   while (!Serial.available())
     //     ;
     // Serial.read();
-    moveTo(next_r, next_c);
+   
   }
 }
 
@@ -570,15 +570,15 @@ void turn(double angle) {
 //-1.2 1.5
 bool moveF(double tiles = 16)           // if you want to move tile by tile use moveF(1), if you want continuous use moveF();
 {                                       // just need to add to make it stop using the irs
-  double desiredDistance = tiles * 19;  // el tile el mafrood 18cm, bas we found it would move slightly less than what we wanted, fa we increased it
+  double desiredDistance = tiles * 19.7;  // el tile el mafrood 18cm, bas we found it would move slightly less than what we wanted, fa we increased it
 
   double startX = xPosition, startY = yPosition;
   double startYaw = theoreticalHeading;
 
-  unsigned long startRight = rightEncoder.position();
-  unsigned long startLeft = leftEncoder.position();
-  unsigned long rightTicks, leftTicks;
-  unsigned long startTime = millis();
+  long startRight = rightEncoder.position();
+  long startLeft = leftEncoder.position();
+  long rightTicks, leftTicks;
+  long startTime = millis();
 
   // for the distance
   double errorL = desiredDistance - calculateDistance(startX, startY);
@@ -621,7 +621,7 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
     //READIRS();
     rightTicks = rightEncoder.position() - startRight;
     leftTicks = leftEncoder.position() - startLeft;
-    unsigned long deltaTicks = rightTicks - leftTicks;
+    long deltaTicks = rightTicks - leftTicks;
     // static double integralval = 0 ;
     // if (fabs(integralval) > 255)
     //     integralval += kiTicks*(deltaTicks - errorTicksPrev)*(millis() - t) ;
