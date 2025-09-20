@@ -133,9 +133,9 @@ constexpr uint8_t ADC1_4 = 5;
 constexpr uint8_t ADC1_5 = 6;
 
 #define frontrightThresh 100
-#define frontleftThresh 90
-#define leftThresh 300
-#define rightThresh 200
+#define frontleftThresh 100
+#define leftThresh 100
+#define rightThresh 100
 
 
 
@@ -326,7 +326,7 @@ void moveTo(char r, char c) {
 }
 
 void exploreToCenter() {
-  while (!(((curr_r == MAX_H / 2 - 1) || (curr_r == MAX_H / 2)) && ((curr_c == MAX_W / 2 - 1) || (curr_c == MAX_W / 2)))) {
+  while (!(((curr_r == 12) || (curr_r == 13)) && ((curr_c == 4) || (curr_c == 5))) && !menu ) {
     maze[curr_r][curr_c][4] = 1;
     //log("start: " + tostr(dis[curr_r][curr_c]));
     //log(String((int)curr_r)+" "+String((int)curr_c )+" "+String((int)curr_dir));
@@ -371,15 +371,15 @@ void exploreToCenter() {
     if ((next_r == curr_r) && (next_c == curr_c))
       flood();
     else
-      while (!Serial.available())
-        ;
-    Serial.read();
+    //   while (!Serial.available())
+    //     ;
+    // Serial.read();
     moveTo(next_r, next_c);
   }
 }
 
 void exploreToStart() {
-  while (!(curr_c == 1 && curr_r == 16)) {
+  while (!(curr_c == 1 && curr_r == 16) && !menu) {
     maze[curr_r][curr_c][4] = 1;
     //log("start: " + tostr(dis[curr_r][curr_c]));
     //log(String((int)curr_r)+" "+String((int)curr_c )+" "+String((int)curr_dir));
@@ -570,7 +570,7 @@ void turn(double angle) {
 //-1.2 1.5
 bool moveF(double tiles = 16)           // if you want to move tile by tile use moveF(1), if you want continuous use moveF();
 {                                       // just need to add to make it stop using the irs
-  double desiredDistance = tiles * 18;  // el tile el mafrood 18cm, bas we found it would move slightly less than what we wanted, fa we increased it
+  double desiredDistance = tiles * 19;  // el tile el mafrood 18cm, bas we found it would move slightly less than what we wanted, fa we increased it
 
   double startX = xPosition, startY = yPosition;
   double startYaw = theoreticalHeading;
@@ -788,6 +788,7 @@ void toggleMenu() {
 
 void modeChooser() {
   if (menu && millis() - interTimer > 250) {
+    Serial.print("changing mode");
     option = '0' + (option - '0' + 1) % 3;
     EEPROM.write(modeByte, option);
     EEPROM.commit();
@@ -807,7 +808,8 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(changePin), toggleMenu, RISING);
   attachInterrupt(digitalPinToInterrupt(selectorPin), modeChooser, RISING);
   option = EEPROM.read(modeByte);
-  if(option != '1' || option != '2' || option != '3')option = '0'; // solution ya3 5ales bas i don't really care 
+  if (option < '0' || option > '2') option = '1';
+
 
   //   delay(1000);
 
@@ -988,13 +990,16 @@ void loop() {
   //   //log("done!!!! The best run is "+ current_run);
   //   }
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
   // option --> correspondance
   // 0 --> floodfill
   // 1 --> right-hand
   // 2 --> left-hand
   if (menu) {
     if (option == '0') {
-      Serial.println("shalawlaw");
+      Serial.println("0 menu");
+      // delay(2000);
       analogWrite(leftMotorForward, 100);
       analogWrite(leftMotorBackward, 0);
       analogWrite(rightMotorForward, 100);
@@ -1018,14 +1023,17 @@ void loop() {
     }
   } else {
     if (option == '0') {
-      Serial.println("shalshool");
-      delay(1000);
-      while (1) {
-        Serial.println("while lol ");
+      Serial.println("0 no menu");
+      delay(2000);
+      while (!menu) {
         // server.handleClient();
+        Serial.println("0 while");
+      // delay(2000);
         flood();
+        Serial.println("done flood");
         previous_run = current_run;
         exploreToCenter();
+        Serial.println("done exploretocenter");
         current_run = dis[16][1];
         if (current_run != 0 && current_run == previous_run) break;
         flood(0);
@@ -1040,13 +1048,13 @@ void loop() {
       analogWrite(rightMotorBackward, 0);
       delay(1000);
       READIRS();
-      if (readings[3] < 100) {
+      if(!wallRight()){//if (readings[3] < 100) {
         turn(90);
         // theoreticalHeading = (theoreticalHeading + 90) % 360;
         delay(500);
         moveF(1);
         Serial.println("RHRIGHT");
-      } else if (readings[0] < 100) {
+      } else if (!wallFront()){//else if (readings[0] < 100) {
         moveF(1);
         Serial.println("RHFORWARD");
       } else {
@@ -1062,13 +1070,13 @@ void loop() {
       analogWrite(rightMotorBackward, 0);
       delay(1000);
       READIRS();
-      if (readings[2] < 100) {
+      if(!wallLeft()){//if (readings[2] < 100) {
         turn(-90);
         // theoreticalHeading = (theoreticalHeading + 90) % 360;
         delay(500);
         moveF(1);
         Serial.println("LHLEFT");
-      } else if (readings[0] < 100) {
+      } else if (!wallFront()){//else if (readings[0] < 100) {
         moveF(1);
         Serial.println("LHFORWARD");
       } else {
@@ -1084,4 +1092,5 @@ void loop() {
       Serial.println("WTF HAPPENED?? NO MENU " + String(option));
     }
   }
+  //READIRS();
 }
