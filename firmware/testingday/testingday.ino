@@ -251,13 +251,17 @@ void flood(bool goal = 1) {  // make goal = 0 to change the goal to the start
   }
 
   if (goal) {
-    for (char x = 12; x < 14; x++) {  //change middle cells with 0
-      for (char w = 4; w < 6; w++) {
-        dis[x][w] = 0;
-        enqueue(r_q, x);
-        enqueue(c_q, w);
-      }
-    }
+    // for (char x = 12; x < 14; x++) {  //change middle cells with 0
+    //   for (char w = 4; w < 6; w++) {
+    //     dis[x][w] = 0;
+    //     enqueue(r_q, x);
+    //     enqueue(c_q, w);
+    //   }
+    // }
+    dis[14][3] = 0;
+    enqueue(r_q, 14);
+    enqueue(c_q, 3);
+
   } else {
     dis[16][1] = 0;
     enqueue(r_q, 16);
@@ -294,7 +298,7 @@ void moveTo(char r, char c) {
   if (dir - curr_dir == -1 || dir - curr_dir == 3)  // turn left
   {
     turn(-90);  //turnLeft();
-    delay(500);
+    delay(200);
     //moveF(1);       //moveForward();
     curr_dir += 3;  // b3mel +3 msh -1 because el negative numbers don't work/work differently fel mod//
     curr_dir %= 4;
@@ -304,19 +308,21 @@ void moveTo(char r, char c) {
   else if (dir - curr_dir == 1 || dir - curr_dir == -3)  // turn right
   {
     turn(90);  //turnRight();
-    delay(500);
+    delay(200);
     curr_dir++;
     curr_dir %= 4;
     if (!moveF(1)) return;  //moveForward(); //this function returns 0 if it was unable to move,so we leave the func, 3shan man8ayarsh el curr c wel curr r
 
-  } else if (dir == curr_dir)  // move forward
+  } 
+  else if (dir == curr_dir)  // move forward
   {
     if (!moveF(1)) return;  //moveForward();
-  } else                    // turn 180
+  } 
+  else                    // turn 180
   {
     //turnRight();
     turn(180);  //turnRight();
-    delay(500);
+    delay(200);
     curr_dir += 2;
     curr_dir %= 4;
     if (!moveF(1)) return;  //moveForward();
@@ -325,25 +331,27 @@ void moveTo(char r, char c) {
   curr_dir %= 4;
   curr_c = c;
   curr_r = r;
-  delay(500);
+  delay(100);
 }
 
 void exploreToCenter() {
-  while (!(((curr_r == 12) || (curr_r == 13)) && ((curr_c == 4) || (curr_c == 5))) && !menu ) {
+  //while (!(((curr_r == 12) || (curr_r == 13)) && ((curr_c == 4) || (curr_c == 5))) && !menu ) {
+    while(!(curr_r == 14 && curr_c == 3) && !menu){
+    Serial.println("Exploring to center");
     maze[curr_r][curr_c][4] = 1;
     //log("start: " + tostr(dis[curr_r][curr_c]));
     //log(String((int)curr_r)+" "+String((int)curr_c )+" "+String((int)curr_dir));
     bool walls[4];
     walls[0] = wallFront();
     walls[1] = wallRight();
-    //walls [2] = wallBack(); wall back isn't working
+    //walls [2] = wallBack(); wall back isn't available();
     walls[3] = wallLeft();
     if (curr_r == 16 && curr_c == 1 && curr_dir == 0) walls[2] = 1;
-    //walls[2] = 0;
+    else walls[2] = 0;
     //for(int i=0;i<4;i++) std::cerr<<walls[i]<<" ";
     //std::cerr<<std::endl;
     // dataTosend = String(wallLeft()) + " " + String(wallFront()) + " " + String(wallRight()) + "\n" ;
-
+    Serial.println("wussup");
     Serial.print((int)curr_c);
     Serial.print(" ");
     Serial.println((int)curr_r);
@@ -355,7 +363,7 @@ void exploreToCenter() {
 
     char d = curr_dir, w = 0;
     do {
-      maze[curr_r][curr_c][d] = walls[w];
+      maze[curr_r][curr_c][d] |= walls[w];
       d = (d + 1) % 4;
       w++;
     } while (d != curr_dir);
@@ -373,10 +381,13 @@ void exploreToCenter() {
 
     if ((next_r == curr_r) && (next_c == curr_c))
       flood();
-    else moveTo(next_r, next_c);
-    //   while (!Serial.available())
-    //     ;
+    else
+    { 
+    // while (!Serial.available());
     // Serial.read();
+    // Serial.flush();
+    moveTo(next_r, next_c);
+    }
     
   }
 }
@@ -400,7 +411,7 @@ void exploreToStart() {
 
     char d = curr_dir, w = 0;
     do {
-      maze[curr_r][curr_c][d] = walls[w];
+      maze[curr_r][curr_c][d] |= walls[w];
       d = (d + 1) % 4;
       w++;
     } while (d != curr_dir);
@@ -477,19 +488,17 @@ inline void READIRS() {
       // u_long b = micros();
       //delay(100);
     }
-    Serial.print(String((lit_val - dark_val) / 5) + " ");
+    //Serial.print(String((lit_val - dark_val) / 5) + " ");
     readings[i] = (lit_val - dark_val) / 5;
     i++;
   }
-  Serial.println();
+  //Serial.println();
 }
 
 bool frontEmergency()
 {
-  for (int i = 0; i < 10; i++) {
   READIRS();
-  if (readings[0] > 900 && readings[1] > 900) return 1;
-  }
+  if (readings[0] > 1250 && readings[1] > 1250) return 1;
   return 0;
 }
 
@@ -592,6 +601,11 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
   long rightTicks, leftTicks;
   long startTime = millis();
 
+  rightEncoder.setPosition(0);
+  leftEncoder.setPosition(0);
+  previousLeft=0;
+  previousRight=0;
+
   // for the distance
   double errorL = desiredDistance - calculateDistance(startX, startY);
   double errorLPrev = errorL;
@@ -679,6 +693,7 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
       // timeout_timer = millis();
       timeout_ctr++;
     }
+    if(frontEmergency())break;
     Serial.println(getLin());
   }
 
@@ -702,6 +717,7 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
   analogWrite(rightMotorForward, 0);
   analogWrite(rightMotorBackward, 0);
   if (timeout_ctr >= 50) return 0;
+  if(errorL > 10)return 0;
   return 1;
 }
 
@@ -1047,7 +1063,7 @@ void loop() {
         exploreToCenter();
         Serial.println("done exploretocenter");
         current_run = dis[16][1];
-        if (current_run != 0 && current_run == previous_run) break;
+        //if (current_run != 0 && current_run == previous_run) break;
         flood(0);
         exploreToStart();
         //log("done!!!! The best run is "+ current_run);
