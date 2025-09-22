@@ -33,6 +33,7 @@ void turn(double angle);
 bool wallLeft();
 bool wallRight();
 bool wallFront();
+bool frontEmergency();
 
 
 #define MAX_H 18
@@ -481,6 +482,15 @@ inline void READIRS() {
     i++;
   }
   Serial.println();
+}
+
+bool frontEmergency()
+{
+  for (int i = 0; i < 10; i++) {
+  READIRS();
+  if (readings[0] > 900 && readings[1] > 900) return 1;
+  }
+  return 0;
 }
 
 
