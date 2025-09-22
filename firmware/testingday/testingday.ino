@@ -250,8 +250,8 @@ void flood(bool goal = 1) {  // make goal = 0 to change the goal to the start
   }
 
   if (goal) {
-    for (char x = 4; x < 6; x++) {  //change middle cells with 0
-      for (char w = 12; w < 14; w++) {
+    for (char x = 12; x < 14; x++) {  //change middle cells with 0
+      for (char w = 4; w < 6; w++) {
         dis[x][w] = 0;
         enqueue(r_q, x);
         enqueue(c_q, w);
@@ -294,7 +294,7 @@ void moveTo(char r, char c) {
   {
     turn(-90);  //turnLeft();
     delay(500);
-      //moveForward();
+    //moveF(1);       //moveForward();
     curr_dir += 3;  // b3mel +3 msh -1 because el negative numbers don't work/work differently fel mod//
     curr_dir %= 4;
     if (!moveF(1)) return; 
@@ -572,15 +572,15 @@ void turn(double angle) {
 //-1.2 1.5
 bool moveF(double tiles = 16)           // if you want to move tile by tile use moveF(1), if you want continuous use moveF();
 {                                       // just need to add to make it stop using the irs
-  double desiredDistance = tiles * 19;  // el tile el mafrood 18cm, bas we found it would move slightly less than what we wanted, fa we increased it
+  double desiredDistance = tiles * 19.7;  // el tile el mafrood 18cm, bas we found it would move slightly less than what we wanted, fa we increased it
 
   double startX = xPosition, startY = yPosition;
   double startYaw = theoreticalHeading;
 
-  unsigned long startRight = rightEncoder.position();
-  unsigned long startLeft = leftEncoder.position();
-  unsigned long rightTicks, leftTicks;
-  unsigned long startTime = millis();
+  long startRight = rightEncoder.position();
+  long startLeft = leftEncoder.position();
+  long rightTicks, leftTicks;
+  long startTime = millis();
 
   // for the distance
   double errorL = desiredDistance - calculateDistance(startX, startY);
@@ -623,7 +623,7 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
     //READIRS();
     rightTicks = rightEncoder.position() - startRight;
     leftTicks = leftEncoder.position() - startLeft;
-    unsigned long deltaTicks = rightTicks - leftTicks;
+    long deltaTicks = rightTicks - leftTicks;
     // static double integralval = 0 ;
     // if (fabs(integralval) > 255)
     //     integralval += kiTicks*(deltaTicks - errorTicksPrev)*(millis() - t) ;
