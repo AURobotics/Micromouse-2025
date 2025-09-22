@@ -250,8 +250,8 @@ void flood(bool goal = 1) {  // make goal = 0 to change the goal to the start
   }
 
   if (goal) {
-    for (char x = 4; x < 6; x++) {  //change middle cells with 0
-      for (char w = 12; w < 14; w++) {
+    for (char x = 12; x < 14; x++) {  //change middle cells with 0
+      for (char w = 4; w < 6; w++) {
         dis[x][w] = 0;
         enqueue(r_q, x);
         enqueue(c_q, w);
@@ -294,8 +294,10 @@ void moveTo(char r, char c) {
   {
     turn(-90);  //turnLeft();
     delay(500);
-    moveF(1);       //moveForward();
+    //moveF(1);       //moveForward();
     curr_dir += 3;  // b3mel +3 msh -1 because el negative numbers don't work/work differently fel mod//
+    curr_dir %= 4;
+    if (!moveF(1)) return;
   }
 
   else if (dir - curr_dir == 1 || dir - curr_dir == -3)  // turn right
