@@ -386,6 +386,7 @@ void exploreToCenter() {
       char d = curr_dir, w = 0;
       do {
         maze[curr_r][curr_c][d] = walls[w];
+        maze[curr_r + r_mov[d]][curr_c + c_mov[d]][(d + 2) % 4] = walls[w]; // set the wall for the neighbouring cell too
         d = (d + 1) % 4;
         w++;
       } while (d != curr_dir);
@@ -453,6 +454,7 @@ void exploreToStart() {
       char d = curr_dir, w = 0;
       do {
         maze[curr_r][curr_c][d] = walls[w];
+        maze[curr_r + r_mov[d]][curr_c + c_mov[d]][(d + 2) % 4] = walls[w];
         d = (d + 1) % 4;
         w++;
       } while (d != curr_dir);
