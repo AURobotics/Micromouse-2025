@@ -827,7 +827,7 @@ inline float getOrientationX() {
   //bno.setSensorOffsets(calib);
   sensors_event_t orientationData;
   bno.getEvent(&orientationData, Adafruit_BNO055::VECTOR_EULER);
-  return orientationData.orientation.x;
+  return orientationData.orientation.z;
 }
 
 inline float getRate() {
@@ -987,8 +987,45 @@ void setup() {
       ;
   }
   //delay(1000);
-  bno.setExtCrystalUse(true);
+  
+  // Set to configuration mode to change axis mapping
+  bno.setMode(OPERATION_MODE_CONFIG);
+  delay(25);
 
+  // Configure axis remapping for vertical mounting
+  // Original: X=down, Y=left, Z=forward  
+  // Target: X=forward, Y=left, Z=up
+  // AXIS_REMAP_CONFIG: bits 5:4 = Z axis, bits 3:2 = Y axis, bits 1:0 = X axis
+  // 0=X, 1=Y, 2=Z for each pair of bits
+  // We want: X_new = Z_orig, Y_new = Y_orig, Z_new = X_orig
+  // So: X axis uses Z (2), Y axis uses Y (1), Z axis uses X (0)
+  // Binary: 00|01|10 = 0x06
+  uint8_t axis_remap_config = 0x06; // X=Z, Y=Y, Z=X
+  
+  // AXIS_REMAP_SIGN: bit 2 = Z sign, bit 1 = Y sign, bit 0 = X sign
+  // We want: X_new = +Z_orig, Y_new = +Y_orig, Z_new = -X_orig  
+  // So: X sign = positive (0), Y sign = positive (0), Z sign = negative (1)
+  // Binary: 100 = 0x04
+  uint8_t axis_remap_sign = 0x04; // X=+, Y=+, Z=-
+
+  // Write the axis remapping registers
+  Wire.beginTransmission(0x29);
+  Wire.write(0x41); // AXIS_REMAP_CONFIG register
+  Wire.write(axis_remap_config);
+  Wire.endTransmission();
+  delay(10);
+
+  Wire.beginTransmission(0x29);
+  Wire.write(0x42); // AXIS_REMAP_SIGN register  
+  Wire.write(axis_remap_sign);
+  Wire.endTransmission();
+  delay(10);
+
+  // Set operation mode to NDOF_FMC_OFF (9-axis fusion with fast mag calibration off)
+  bno.setMode(OPERATION_MODE_NDOF_FMC_OFF);
+  delay(20);
+  
+  bno.setExtCrystalUse(true);
 
     // Apply saved calibration
   //bno.setSensorOffsets(calib);
@@ -1132,19 +1169,19 @@ void loop() {
   //   exploreToStart ();
   //   //log("done!!!! The best run is "+ current_run);
   //   }
-  uint8_t sys,accel,gyro,mag;
-bno.getCalibration(&sys,&gyro,&accel,&mag);
-Serial.println(String(sys) + " "+ String(gyro) + " " + String(accel) + " " + String(mag));
+//   uint8_t sys,accel,gyro,mag;
+// bno.getCalibration(&sys,&gyro,&accel,&mag);
+// Serial.println(String(sys) + " "+ String(gyro) + " " + String(accel) + " " + String(mag));
 
-getPosition();
-Serial.println(yaw);
-delay(100);
+// getPosition();
+// Serial.println(yaw);
+// delay(100);
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
   // option --> correspondance
   // 0 --> floodfill
   // 1 --> right-hand
   // 2 --> left-hand
-  /*if (menu) {
+  if (menu) {
     if (option == '0') {
       //Serial.println("0 menu");
       // delay(2000);
