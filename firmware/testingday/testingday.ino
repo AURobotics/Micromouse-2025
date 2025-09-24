@@ -123,6 +123,19 @@ double yawOffset = 0;
 
 
 Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x29, &Wire);
+adafruit_bno055_offsets_t calib = {
+  /* accel_offset_x */ 0,
+  /* accel_offset_y */ 0,
+  /* accel_offset_z */ 0,
+  /* mag_offset_x   */ -23696,
+  /* mag_offset_y   */ -32766,
+  /* mag_offset_z   */ -3824,
+  /* gyro_offset_x  */ 16380,
+  /* gyro_offset_y  */ 0,
+  /* gyro_offset_z  */ 0,
+  /* accel_radius   */ 0,
+  /* mag_radius     */ 0
+};
 
 
 
@@ -509,32 +522,6 @@ void exploreToStart() {
 
 
 
-// void setup() {
-//   //Serial.begin(19200);
-//   initialise(c_q,MAX_H * MAX_W); //queue initialisation for storing row and coloumn
-//   initialise(r_q,MAX_H* MAX_W);
-//   update_mms_maze();
-//   log("Khalast setup");
-// //   ////Serial.println("Khalast setup");
-
-
-// }
-
-// void loop() {
-//     log("Dakhalt el loop");
-//     while(1) {
-//     flood();
-//     previous_run = current_run;
-//     exploreToCenter ();
-//     current_run = dis[16][1];
-//     if(current_run != 0 && current_run == previous_run) break;
-//     flood(0);
-//     exploreToStart ();
-//     log("done!!!! The best run is "+ current_run);
-//     }
-// }
-
-
 int theoreticalHeading = 0;
 
 
@@ -837,6 +824,7 @@ double angleDiff(double start, double goal) {
 
 
 inline float getOrientationX() {
+  //bno.setSensorOffsets(calib);
   sensors_event_t orientationData;
   bno.getEvent(&orientationData, Adafruit_BNO055::VECTOR_EULER);
   return orientationData.orientation.x;
@@ -929,6 +917,7 @@ float normalize_angle(const float angle, const float init_angle) {
 
 
 
+
 void setup() {
   //   // put your setup code here, to run once:
   Serial.begin(115200);
@@ -988,6 +977,9 @@ void setup() {
   bno = Adafruit_BNO055(55, 0x29, &Wire);
   //while (!Serial) delay(10);
   ////Serial.println("start");
+  //bno.setMode(Adafruit_BNO055::OPERATION_MODE_NDOF_FMC_OFF);
+  bno.setSensorOffsets(calib);
+
   if (!bno.begin())  // lol
   {
     ////Serial.println("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
@@ -996,6 +988,11 @@ void setup() {
   }
   //delay(1000);
   bno.setExtCrystalUse(true);
+
+
+    // Apply saved calibration
+  //bno.setSensorOffsets(calib);
+
 
   uint8_t sys,accel,gyro,mag;
   bno.getCalibration(&sys,&accel,&gyro,&mag);
@@ -1016,7 +1013,7 @@ void setup() {
     pinMode(echo_pin, INPUT);
   }
   unsigned long tt = millis();
-  while(millis() - tt < 7000){}
+  while(millis() - tt < 2000){}
 
  
 
@@ -1034,6 +1031,7 @@ void setup() {
 
 
 void loop() {
+  //bno.setSensorOffsets(calib);
   // put your main code here, to run repeatedly:
   // moveF(1);
   //turn(90);
@@ -1146,103 +1144,103 @@ delay(100);
   // 0 --> floodfill
   // 1 --> right-hand
   // 2 --> left-hand
-  // if (menu) {
-  //   if (option == '0') {
-  //     //Serial.println("0 menu");
-  //     // delay(2000);
-  //     analogWrite(leftMotorForward, 100);
-  //     analogWrite(leftMotorBackward, 0);
-  //     analogWrite(rightMotorForward, 100);
-  //     analogWrite(rightMotorBackward, 0);
-  //   } else if (option == '1') {
-  //     analogWrite(leftMotorForward, 100);
-  //     analogWrite(leftMotorBackward, 0);
-  //     analogWrite(rightMotorForward, 0);
-  //     analogWrite(rightMotorBackward, 100);
-  //   } else if (option == '2') {
-  //     analogWrite(leftMotorForward, 0);
-  //     analogWrite(leftMotorBackward, 100);
-  //     analogWrite(rightMotorForward, 100);
-  //     analogWrite(rightMotorBackward, 0);
-  //   } else {
-  //     analogWrite(leftMotorForward, 0);
-  //     analogWrite(leftMotorBackward, 0);
-  //     analogWrite(rightMotorForward, 0);
-  //     analogWrite(rightMotorBackward, 0);
-  //     //Serial.println("WTF HAPPENED?? MENU " + String(option));
-  //   }
-  // } else {
-  //   if (option == '0') {
-  //     //Serial.println("0 no menu");
-  //     delay(2000);
-  //     while (!menu) {
-  //       // server.handleClient();
-  //       Serial.println("0 while");
-  //     // delay(2000);
-  //       flood();
-  //       Serial.println("done flood");
-  //       previous_run = current_run;
-  //       exploreToCenter();
-  //       Serial.println("done exploretocenter");
-  //       current_run = dis[16][1];
-  //       //if (current_run != 0 && current_run == previous_run) break;
-  //       flood(0);
-  //       Serial.println("done flood to begin");
-  //       exploreToStart();
-  //       Serial.println("done exploretostart");
-  //       //log("done!!!! The best run is "+ current_run);
-  //     }
-  //   } else if (option == '1') {
-  //     getPosition();
-  //     analogWrite(leftMotorForward, 0);
-  //     analogWrite(leftMotorBackward, 0);
-  //     analogWrite(rightMotorForward, 0);
-  //     analogWrite(rightMotorBackward, 0);
-  //     delay(1000);
-  //     READIRS();
-  //     if(!wallRight()){//if (readings[3] < 100) {
-  //       turn(90);
-  //       // theoreticalHeading = (theoreticalHeading + 90) % 360;
-  //       delay(500);
-  //       moveF(1);
-  //       //Serial.println("RHRIGHT");
-  //     } else if (!wallFront()){//else if (readings[0] < 100) {
-  //       moveF(1);
-  //       //Serial.println("RHFORWARD");
-  //     } else {
-  //       turn(-90);
-  //       //Serial.println("RHLEFT");
-  //       // theoreticalHeading = (theoreticalHeading + 270) % 360;
-  //     }
-  //   } else if (option == '2') {
-  //     getPosition();
-  //     analogWrite(leftMotorForward, 0);
-  //     analogWrite(leftMotorBackward, 0);
-  //     analogWrite(rightMotorForward, 0);
-  //     analogWrite(rightMotorBackward, 0);
-  //     delay(1000);
-  //     READIRS();
-  //     if(!wallLeft()){//if (readings[2] < 100) {
-  //       turn(-90);
-  //       // theoreticalHeading = (theoreticalHeading + 90) % 360;
-  //       delay(500);
-  //       moveF(1);
-  //       //Serial.println("LHLEFT");
-  //     } else if (!wallFront()){//else if (readings[0] < 100) {
-  //       moveF(1);
-  //       //Serial.println("LHFORWARD");
-  //     } else {
-  //       turn(90);
-  //       //Serial.println("RHLEFT");
-  //       // theoreticalHeading = (theoreticalHeading + 270) % 360;
-  //     }
-  //   } else {
-  //     analogWrite(leftMotorForward, 0);
-  //     analogWrite(leftMotorBackward, 0);
-  //     analogWrite(rightMotorForward, 0);
-  //     analogWrite(rightMotorBackward, 0);
-  //     //Serial.println("WTF HAPPENED?? NO MENU " + String(option));
-  //   }
-  // }
-  //READIRS();
+  /*if (menu) {
+    if (option == '0') {
+      //Serial.println("0 menu");
+      // delay(2000);
+      analogWrite(leftMotorForward, 100);
+      analogWrite(leftMotorBackward, 0);
+      analogWrite(rightMotorForward, 100);
+      analogWrite(rightMotorBackward, 0);
+    } else if (option == '1') {
+      analogWrite(leftMotorForward, 100);
+      analogWrite(leftMotorBackward, 0);
+      analogWrite(rightMotorForward, 0);
+      analogWrite(rightMotorBackward, 100);
+    } else if (option == '2') {
+      analogWrite(leftMotorForward, 0);
+      analogWrite(leftMotorBackward, 100);
+      analogWrite(rightMotorForward, 100);
+      analogWrite(rightMotorBackward, 0);
+    } else {
+      analogWrite(leftMotorForward, 0);
+      analogWrite(leftMotorBackward, 0);
+      analogWrite(rightMotorForward, 0);
+      analogWrite(rightMotorBackward, 0);
+      //Serial.println("WTF HAPPENED?? MENU " + String(option));
+    }
+  } else {
+    if (option == '0') {
+      //Serial.println("0 no menu");
+      delay(2000);
+      while (!menu) {
+        // server.handleClient();
+        Serial.println("0 while");
+      // delay(2000);
+        flood();
+        Serial.println("done flood");
+        previous_run = current_run;
+        exploreToCenter();
+        Serial.println("done exploretocenter");
+        current_run = dis[16][1];
+        //if (current_run != 0 && current_run == previous_run) break;
+        flood(0);
+        Serial.println("done flood to begin");
+        exploreToStart();
+        Serial.println("done exploretostart");
+        //log("done!!!! The best run is "+ current_run);
+      }
+    } else if (option == '1') {
+      getPosition();
+      analogWrite(leftMotorForward, 0);
+      analogWrite(leftMotorBackward, 0);
+      analogWrite(rightMotorForward, 0);
+      analogWrite(rightMotorBackward, 0);
+      delay(1000);
+      READIRS();
+      if(!wallRight()){//if (readings[3] < 100) {
+        turn(90);
+        // theoreticalHeading = (theoreticalHeading + 90) % 360;
+        delay(500);
+        moveF(1);
+        //Serial.println("RHRIGHT");
+      } else if (!wallFront()){//else if (readings[0] < 100) {
+        moveF(1);
+        //Serial.println("RHFORWARD");
+      } else {
+        turn(-90);
+        //Serial.println("RHLEFT");
+        // theoreticalHeading = (theoreticalHeading + 270) % 360;
+      }
+    } else if (option == '2') {
+      getPosition();
+      analogWrite(leftMotorForward, 0);
+      analogWrite(leftMotorBackward, 0);
+      analogWrite(rightMotorForward, 0);
+      analogWrite(rightMotorBackward, 0);
+      delay(1000);
+      READIRS();
+      if(!wallLeft()){//if (readings[2] < 100) {
+        turn(-90);
+        // theoreticalHeading = (theoreticalHeading + 90) % 360;
+        delay(500);
+        moveF(1);
+        //Serial.println("LHLEFT");
+      } else if (!wallFront()){//else if (readings[0] < 100) {
+        moveF(1);
+        //Serial.println("LHFORWARD");
+      } else {
+        turn(90);
+        //Serial.println("RHLEFT");
+        // theoreticalHeading = (theoreticalHeading + 270) % 360;
+      }
+    } else {
+      analogWrite(leftMotorForward, 0);
+      analogWrite(leftMotorBackward, 0);
+      analogWrite(rightMotorForward, 0);
+      analogWrite(rightMotorBackward, 0);
+      //Serial.println("WTF HAPPENED?? NO MENU " + String(option));
+    }
+  }
+  //READIRS();*/
 }
