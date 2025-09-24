@@ -113,12 +113,13 @@ RotaryEncoderPCNT leftEncoder(10, 9);  // 8 7
 double previousLeft;
 
 
-int left_revolutions, prev_left_revolutions;
-int right_revolutions, prev_right_revolutions;
+long double left_revolutions, prev_left_revolutions;
+long double right_revolutions, prev_right_revolutions;
 
 
 double xPosition = 0, yPosition = 0;
 double yaw = 0;
+double yawOffset = 0;
 
 
 Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x29, &Wire);
@@ -267,7 +268,7 @@ void flood(bool goal = 1) {  // make goal = 0 to change the goal to the start
     enqueue(r_q, 16);
     enqueue(c_q, 1);
   }
-
+  Serial.println("starting enqueuing");
   while (!isempty(c_q) && !isempty(r_q)) {
     char r = dequeue(r_q);
     char col = dequeue(c_q);
@@ -278,15 +279,16 @@ void flood(bool goal = 1) {  // make goal = 0 to change the goal to the start
     }
     Serial.println();
     for (int i = 0; i < 4; i++) {
-      Serial.println(String(isValid(r + r_mov[i], col + c_mov[i]))  + " " + String(isAccessible(r, col, i)) + " " +dis[r + r_mov[i]][col + c_mov[i]] );
+      //Serial.println(String(isValid(r + r_mov[i], col + c_mov[i]))  + " " + String(isAccessible(r, col, i)) + " " +dis[r + r_mov[i]][col + c_mov[i]] );
       if (isValid(r + r_mov[i], col + c_mov[i]) && isAccessible(r, col, i) && dis[r + r_mov[i]][col + c_mov[i]] == -1) {
-        Serial.println("enqueuing " + String((int)(r + r_mov[i])) + " " + String((int)(col + c_mov[i])) );
+        //Serial.println("enqueuing " + String((int)(r + r_mov[i])) + " " + String((int)(col + c_mov[i])) );
         dis[r + r_mov[i]][col + c_mov[i]] = dis[r][col] + 1;
         enqueue(r_q, r + r_mov[i]);
         enqueue(c_q, col + c_mov[i]);
       }
     }
   }
+  Serial.println("done enquinging lol msh 3aref a spell");
   update_mms_maze();
 }
 
@@ -307,7 +309,7 @@ bool moveTo(char r, char c) {
   {
     Serial.println("turning left");
     turn(-90);  //turnLeft();
-    delay(100);
+    delay(500);
     //moveF(1);       //moveForward();
     curr_dir += 3;  // b3mel +3 msh -1 because el negative numbers don't work/work differently fel mod//
     curr_dir %= 4;
@@ -319,7 +321,7 @@ bool moveTo(char r, char c) {
   {
     Serial.println("turning right");
     turn(90);  //turnRight();
-    delay(100);
+    delay(500);
     curr_dir++;
     curr_dir %= 4;
     Serial.println("moving forward");
@@ -336,7 +338,7 @@ bool moveTo(char r, char c) {
     //turnRight();
     Serial.println("turning 180");
     turn(180);  //turnRight();
-    delay(100);
+    delay(500);
     curr_dir += 2;
     curr_dir %= 4;
     Serial.println("moving forward");
@@ -351,6 +353,7 @@ bool moveTo(char r, char c) {
 }
 bool motionSuccessful = 0;
 int flooded = 0;
+
 void exploreToCenter() {
   motionSuccessful = 1;
   flooded = 0;
@@ -423,6 +426,7 @@ void exploreToCenter() {
     Serial.println("Start moving");
     motionSuccessful = moveTo(next_r, next_c); // if failed, i want it to retake the ir readings
     Serial.println("done moving");
+    delay(200);
     }
     
   }
@@ -484,9 +488,13 @@ void exploreToStart() {
     }
     else{
       flooded = 0;
+      // while (!Serial.available());
+      // Serial.read();
+      // Serial.flush();
       Serial.println("starting motion");
       motionSuccessful = moveTo(next_r, next_c);
       Serial.println("done motion");
+      delay(200);
     }
   }
 
@@ -681,10 +689,10 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
   long rightTicks, leftTicks;
   long startTime = millis();
 
-  rightEncoder.setPosition(0);
-  leftEncoder.setPosition(0);
-  previousLeft=0;
-  previousRight=0;
+  //rightEncoder.setPosition(0);
+  //leftEncoder.setPosition(0);
+  //previousLeft=0;
+  //previousRight=0;
 
   // for the distance
   double errorL = desiredDistance - calculateDistance(startX, startY);
@@ -725,9 +733,9 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
   while ((abs(errorL) > 0.2) && timeout_ctr < 50)  // this 1 might change
   {
     //READIRS();
-    rightTicks = rightEncoder.position() - startRight;
-    leftTicks = leftEncoder.position() - startLeft;
-    long deltaTicks = rightTicks - leftTicks;
+    // rightTicks = rightEncoder.position() - startRight;
+    // leftTicks = leftEncoder.position() - startLeft;
+    // long deltaTicks = rightTicks - leftTicks;
     // static double integralval = 0 ;
     // if (fabs(integralval) > 255)
     //     integralval += kiTicks*(deltaTicks - errorTicksPrev)*(millis() - t) ;
@@ -747,8 +755,9 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
 
     ////Serial.print(errorL);
     ////Serial.print(" ");
-    //Serial.print(yaw);
-    //Serial.print(" ");
+    Serial.print(yaw);
+    Serial.print(" ");
+    Serial.println(startYaw);
     ////Serial.print(speedl);
     //Serial.print(fixSpeed(speedl - speeda));
     //Serial.print(" ");
@@ -765,7 +774,7 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
 
     errorLPrev = errorL;
     errorAPrev = errorA;
-    errorTicksPrev = deltaTicks;
+    //errorTicksPrev = deltaTicks;
 
     t = millis();
     //if(t - startTime > 5000)
@@ -818,6 +827,7 @@ inline double calculateDistance(double x, double y) {
 
 double angleDiff(double start, double goal) {
   //goal  = (goal + 360) % 360.0;
+  start += (start<0? 360 : 0);
   goal += (goal > 360 ? -360 : 0);
   goal += (goal < 0 ? 360 : 0);
   double angle = goal - start;
@@ -835,7 +845,7 @@ inline float getOrientationX() {
 inline float getRate() {
   sensors_event_t gyroData;
   bno.getEvent(&gyroData, Adafruit_BNO055::VECTOR_GYROSCOPE);
-  return gyroData.gyro.x;  // might change it to gyro.z msh x , haven't tested yet -----------------------------------------------------------------------IMPORTANT
+  return gyroData.gyro.x; 
 }
 
 inline float getLin() {
@@ -845,20 +855,21 @@ inline float getLin() {
 }
 
 inline void getPosition() {
-  double leftRevolutions = 1.0 * leftEncoder.position() / ticksperlafa;
-  double rightRevolutions = 1.0 * rightEncoder.position() / ticksperlafa;
+  long double leftRevolutions = 1.0 * leftEncoder.position() / ticksperlafa;
+  long double rightRevolutions = 1.0 * rightEncoder.position() / ticksperlafa;
 
-  double leftDistance = (leftRevolutions - previousLeft) * circumference;
-  double rightDistance = (rightRevolutions - previousRight) * circumference;
-  double distance = (leftDistance + rightDistance) / 2;
+  long double leftDistance = (leftRevolutions - previousLeft) * circumference;
+  long double rightDistance = (rightRevolutions - previousRight) * circumference;
+  long double distance = (leftDistance + rightDistance) / 2;
 
-  double encoderDelta = (rightDistance - leftDistance) / distance_between_wheels;  // won't use that , and this is in radian
-  double bnoDelta = (getOrientationX() - yaw);
-  double deltaAngle = bnoDelta;  // add the encoder delta to it if you want
+  long double encoderDelta = (rightDistance - leftDistance) / distance_between_wheels;  // won't use that , and this is in radian
+  long double bnoDelta = (getOrientationX() - yaw);
+  long double deltaAngle = bnoDelta;  // add the encoder delta to it if you want
 
   yPosition += distance * cos((yaw + deltaAngle / 2) * PI / 180);
   xPosition += distance * sin((yaw + deltaAngle / 2) * PI / 180);
-  yaw += deltaAngle;  // or yaw = getOrientationX();
+  //yaw += deltaAngle;  // or yaw = getOrientationX();
+  yaw = getOrientationX();
 
   //yaw = (yaw+360)%360;
 
@@ -906,6 +917,16 @@ void modeChooser() {
     interTimer = millis();
   } 
 }
+
+
+float normalize_angle(const float angle, const float init_angle) {
+    float ret = fmod(angle + 180 - init_angle, 360.0f);
+    if (ret < 0)
+        ret += 360;
+    //ret += 180;
+    return fmod(ret + 180,360.0f);
+}
+
 
 
 void setup() {
@@ -975,6 +996,12 @@ void setup() {
   }
   //delay(1000);
   bno.setExtCrystalUse(true);
+
+  uint8_t sys,accel,gyro,mag;
+  bno.getCalibration(&sys,&accel,&gyro,&mag);
+  Serial.println(String(sys) + " "+ String(accel) + " " + String(gyro) + " " + String(mag));
+
+  
   ////Serial.println("done withe the bno");
   // digitalWRite(leftMotorForward , HIGH);
   // digitalWrite(rightMotorForward,HIGH);
@@ -988,10 +1015,16 @@ void setup() {
     digitalWrite(trig_pin, LOW);
     pinMode(echo_pin, INPUT);
   }
-  delay(2000);
+  unsigned long tt = millis();
+  while(millis() - tt < 7000){}
+
+ 
 
   interTimer = millis();
   ////Serial.println("Done with the irs");
+  getPosition();
+  yawOffset = yaw;
+
 
 
   //Serial.println("Done with the setup");
@@ -1101,110 +1134,115 @@ void loop() {
   //   exploreToStart ();
   //   //log("done!!!! The best run is "+ current_run);
   //   }
+  uint8_t sys,accel,gyro,mag;
+bno.getCalibration(&sys,&gyro,&accel,&mag);
+Serial.println(String(sys) + " "+ String(gyro) + " " + String(accel) + " " + String(mag));
 
-
+getPosition();
+Serial.println(yaw);
+delay(100);
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
   // option --> correspondance
   // 0 --> floodfill
   // 1 --> right-hand
   // 2 --> left-hand
-  if (menu) {
-    if (option == '0') {
-      //Serial.println("0 menu");
-      // delay(2000);
-      analogWrite(leftMotorForward, 100);
-      analogWrite(leftMotorBackward, 0);
-      analogWrite(rightMotorForward, 100);
-      analogWrite(rightMotorBackward, 0);
-    } else if (option == '1') {
-      analogWrite(leftMotorForward, 100);
-      analogWrite(leftMotorBackward, 0);
-      analogWrite(rightMotorForward, 0);
-      analogWrite(rightMotorBackward, 100);
-    } else if (option == '2') {
-      analogWrite(leftMotorForward, 0);
-      analogWrite(leftMotorBackward, 100);
-      analogWrite(rightMotorForward, 100);
-      analogWrite(rightMotorBackward, 0);
-    } else {
-      analogWrite(leftMotorForward, 0);
-      analogWrite(leftMotorBackward, 0);
-      analogWrite(rightMotorForward, 0);
-      analogWrite(rightMotorBackward, 0);
-      //Serial.println("WTF HAPPENED?? MENU " + String(option));
-    }
-  } else {
-    if (option == '0') {
-      //Serial.println("0 no menu");
-      delay(2000);
-      while (!menu) {
-        // server.handleClient();
-        Serial.println("0 while");
-      // delay(2000);
-        flood();
-        Serial.println("done flood");
-        previous_run = current_run;
-        exploreToCenter();
-        Serial.println("done exploretocenter");
-        current_run = dis[16][1];
-        //if (current_run != 0 && current_run == previous_run) break;
-        flood(0);
-        Serial.println("done flood to begin");
-        exploreToStart();
-        Serial.println("done exploretostart");
-        //log("done!!!! The best run is "+ current_run);
-      }
-    } else if (option == '1') {
-      getPosition();
-      analogWrite(leftMotorForward, 0);
-      analogWrite(leftMotorBackward, 0);
-      analogWrite(rightMotorForward, 0);
-      analogWrite(rightMotorBackward, 0);
-      delay(1000);
-      READIRS();
-      if(!wallRight()){//if (readings[3] < 100) {
-        turn(90);
-        // theoreticalHeading = (theoreticalHeading + 90) % 360;
-        delay(500);
-        moveF(1);
-        //Serial.println("RHRIGHT");
-      } else if (!wallFront()){//else if (readings[0] < 100) {
-        moveF(1);
-        //Serial.println("RHFORWARD");
-      } else {
-        turn(-90);
-        //Serial.println("RHLEFT");
-        // theoreticalHeading = (theoreticalHeading + 270) % 360;
-      }
-    } else if (option == '2') {
-      getPosition();
-      analogWrite(leftMotorForward, 0);
-      analogWrite(leftMotorBackward, 0);
-      analogWrite(rightMotorForward, 0);
-      analogWrite(rightMotorBackward, 0);
-      delay(1000);
-      READIRS();
-      if(!wallLeft()){//if (readings[2] < 100) {
-        turn(-90);
-        // theoreticalHeading = (theoreticalHeading + 90) % 360;
-        delay(500);
-        moveF(1);
-        //Serial.println("LHLEFT");
-      } else if (!wallFront()){//else if (readings[0] < 100) {
-        moveF(1);
-        //Serial.println("LHFORWARD");
-      } else {
-        turn(90);
-        //Serial.println("RHLEFT");
-        // theoreticalHeading = (theoreticalHeading + 270) % 360;
-      }
-    } else {
-      analogWrite(leftMotorForward, 0);
-      analogWrite(leftMotorBackward, 0);
-      analogWrite(rightMotorForward, 0);
-      analogWrite(rightMotorBackward, 0);
-      //Serial.println("WTF HAPPENED?? NO MENU " + String(option));
-    }
-  }
+  // if (menu) {
+  //   if (option == '0') {
+  //     //Serial.println("0 menu");
+  //     // delay(2000);
+  //     analogWrite(leftMotorForward, 100);
+  //     analogWrite(leftMotorBackward, 0);
+  //     analogWrite(rightMotorForward, 100);
+  //     analogWrite(rightMotorBackward, 0);
+  //   } else if (option == '1') {
+  //     analogWrite(leftMotorForward, 100);
+  //     analogWrite(leftMotorBackward, 0);
+  //     analogWrite(rightMotorForward, 0);
+  //     analogWrite(rightMotorBackward, 100);
+  //   } else if (option == '2') {
+  //     analogWrite(leftMotorForward, 0);
+  //     analogWrite(leftMotorBackward, 100);
+  //     analogWrite(rightMotorForward, 100);
+  //     analogWrite(rightMotorBackward, 0);
+  //   } else {
+  //     analogWrite(leftMotorForward, 0);
+  //     analogWrite(leftMotorBackward, 0);
+  //     analogWrite(rightMotorForward, 0);
+  //     analogWrite(rightMotorBackward, 0);
+  //     //Serial.println("WTF HAPPENED?? MENU " + String(option));
+  //   }
+  // } else {
+  //   if (option == '0') {
+  //     //Serial.println("0 no menu");
+  //     delay(2000);
+  //     while (!menu) {
+  //       // server.handleClient();
+  //       Serial.println("0 while");
+  //     // delay(2000);
+  //       flood();
+  //       Serial.println("done flood");
+  //       previous_run = current_run;
+  //       exploreToCenter();
+  //       Serial.println("done exploretocenter");
+  //       current_run = dis[16][1];
+  //       //if (current_run != 0 && current_run == previous_run) break;
+  //       flood(0);
+  //       Serial.println("done flood to begin");
+  //       exploreToStart();
+  //       Serial.println("done exploretostart");
+  //       //log("done!!!! The best run is "+ current_run);
+  //     }
+  //   } else if (option == '1') {
+  //     getPosition();
+  //     analogWrite(leftMotorForward, 0);
+  //     analogWrite(leftMotorBackward, 0);
+  //     analogWrite(rightMotorForward, 0);
+  //     analogWrite(rightMotorBackward, 0);
+  //     delay(1000);
+  //     READIRS();
+  //     if(!wallRight()){//if (readings[3] < 100) {
+  //       turn(90);
+  //       // theoreticalHeading = (theoreticalHeading + 90) % 360;
+  //       delay(500);
+  //       moveF(1);
+  //       //Serial.println("RHRIGHT");
+  //     } else if (!wallFront()){//else if (readings[0] < 100) {
+  //       moveF(1);
+  //       //Serial.println("RHFORWARD");
+  //     } else {
+  //       turn(-90);
+  //       //Serial.println("RHLEFT");
+  //       // theoreticalHeading = (theoreticalHeading + 270) % 360;
+  //     }
+  //   } else if (option == '2') {
+  //     getPosition();
+  //     analogWrite(leftMotorForward, 0);
+  //     analogWrite(leftMotorBackward, 0);
+  //     analogWrite(rightMotorForward, 0);
+  //     analogWrite(rightMotorBackward, 0);
+  //     delay(1000);
+  //     READIRS();
+  //     if(!wallLeft()){//if (readings[2] < 100) {
+  //       turn(-90);
+  //       // theoreticalHeading = (theoreticalHeading + 90) % 360;
+  //       delay(500);
+  //       moveF(1);
+  //       //Serial.println("LHLEFT");
+  //     } else if (!wallFront()){//else if (readings[0] < 100) {
+  //       moveF(1);
+  //       //Serial.println("LHFORWARD");
+  //     } else {
+  //       turn(90);
+  //       //Serial.println("RHLEFT");
+  //       // theoreticalHeading = (theoreticalHeading + 270) % 360;
+  //     }
+  //   } else {
+  //     analogWrite(leftMotorForward, 0);
+  //     analogWrite(leftMotorBackward, 0);
+  //     analogWrite(rightMotorForward, 0);
+  //     analogWrite(rightMotorBackward, 0);
+  //     //Serial.println("WTF HAPPENED?? NO MENU " + String(option));
+  //   }
+  // }
   //READIRS();
 }
