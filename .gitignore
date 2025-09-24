@@ -5,3 +5,6 @@
 **/.pio/
 
 simulator/
+
+build/
+**/build/
