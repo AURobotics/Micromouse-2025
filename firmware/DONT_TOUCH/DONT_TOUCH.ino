@@ -271,9 +271,20 @@ void flood(bool goal = 1) {  // make goal = 0 to change the goal to the start
     //     enqueue(c_q, w);
     //   }
     // }
-    dis[14][3] = 0;
-    enqueue(r_q, 14);
-    enqueue(c_q, 3);
+    // dis[14][3] = 0;
+    // enqueue(r_q, 14);
+    // enqueue(c_q, 3);
+    for (char x = MAX_W / 2 - 1; x < MAX_W / 2 + 1; x++)
+    { // change middle cells with 0
+        for (char w = MAX_H / 2 - 1; w < MAX_H / 2 + 1; w++)
+        {
+            dis[x][w] = 0;
+            // r_q.push(x);
+            // c_q.push(w);
+            enqueue(r_q, x);
+            enqueue(c_q, w);
+        }
+    }
 
   } else {
     dis[16][1] = 0;
@@ -367,8 +378,9 @@ int flooded = 0;
 void exploreToCenter() {
   motionSuccessful = 1;
   flooded = 0;
+  while(!(((curr_r == MAX_H / 2 - 1) || (curr_r == MAX_H / 2)) && ((curr_c == MAX_W / 2 - 1) || (curr_c == MAX_W / 2)))){
   //while (!(((curr_r == 12) || (curr_r == 13)) && ((curr_c == 4) || (curr_c == 5))) && !menu ) {
-    while(!(curr_r == 14 && curr_c == 3) && !menu){
+    //while(!(curr_r == 14 && curr_c == 3) && !menu){
     Serial.println("Exploring to center" + String((int)curr_c )+" "+String((int)curr_r) + String((int)curr_dir));
     
     //log("start: " + tostr(dis[curr_r][curr_c]));
