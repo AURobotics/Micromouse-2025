@@ -56,4 +56,3 @@ TabWidth: 4
 BinPackParameters: true
 BinPackArguments: false
 SpaceBeforeCaseColon: true
-...
