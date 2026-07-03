@@ -1,8 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <Adafruit_Sensor.h>
-#include <Adafruit_BNO055.h>
-#include <utility/imumaths.h>
+#include <BNO055.h>
 #include <RotaryEncoderPCNT.h>
 #include <EEPROM.h>
 // #include <WiFi.h>
@@ -13,20 +11,6 @@
 // // Replace with your network credentials
 // const char* ssid = "Borham2";
 // const char* password = "18046768";
-
-adafruit_bno055_offsets_t calib = {
-  /* accel_offset_x */ 2,
-  /* accel_offset_y */ 4,
-  /* accel_offset_z */ 15,
-  /* mag_offset_x   */ -153,
-  /* mag_offset_y   */ 532,
-  /* mag_offset_z   */ 30,
-  /* gyro_offset_x  */ -2,
-  /* gyro_offset_y  */ 1,
-  /* gyro_offset_z  */ 0,
-  /* accel_radius   */ 1000,
-  /* mag_radius     */ 965
-};
 
 // // Create a web server on port 80
 // WebServer server(80);
@@ -41,6 +25,9 @@ unsigned long interTimer;
 inline void getPosition();  // odom
 inline float getOrientationX();
 inline float getRate();
+bool calibrateBnoAndSave(imu& bno);
+bool loadBnoCalibration(imu& bno);
+
 bool moveF(double tiles);
 void turn(double angle);
 bool wallLeft();
@@ -114,7 +101,7 @@ queue c_q;
 #define ticksperlafa 1400
 #define circumference 10.681
 #define distance_between_wheels 9
-// #define PI 3.141592653589
+#define PI 3.141592653589
 
 
 
@@ -139,9 +126,14 @@ double xPosition = 0, yPosition = 0;
 double yaw = 0;
 double yawOffset = 0;
 
+#define EEPROM_SIZE        32          // claude said nekhaleeh 64 instead not sure why tho fa i'll leave it keda
+#define CALIB_FLAG_ADDR    4           //after modebyte
+#define CALIB_DATA_ADDR    5           // actual calibProfile struct starts here 22 bytes
+#define CALIB_MAGIC        0x42        // if found then data is valid
 
-Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x29, &Wire);
-
+#define SCL_PIN 35
+#define SDA_PIN 33
+imu bno(SCL_PIN,SDA_PIN,I2C_NUM_0, 0x29);
 
 
 
@@ -865,21 +857,16 @@ double angleDiff(double start, double goal) {
 
 
 inline float getOrientationX() {
-  sensors_event_t orientationData;
-  bno.getEvent(&orientationData, Adafruit_BNO055::VECTOR_EULER);
-  return orientationData.orientation.x;
+  return bno.euler().vec[0] * 180.0/PI; //changed from rad to degrees cuz the rest of the code uses degrees
 }
 
 inline float getRate() {
-  sensors_event_t gyroData;
-  bno.getEvent(&gyroData, Adafruit_BNO055::VECTOR_GYROSCOPE);
-  return gyroData.gyro.x;  // might change it to gyro.z msh x , haven't tested yet -----------------------------------------------------------------------IMPORTANT
+  return bno.gyro().vec[0] * 180/PI;
+  //vec[2]-->rate about z  // might change it to gyro.z msh x , haven't tested yet -----------------------------------------------------------------------IMPORTANT
 }
 
 inline float getLin() {
-  sensors_event_t linearAccelData;
-  bno.getEvent(&linearAccelData, Adafruit_BNO055::VECTOR_LINEARACCEL);
-  return linearAccelData.acceleration.z;
+  return bno.linear_acceleration().vec[2];  // Z axis
 }
 
 inline void getPosition() {
@@ -904,12 +891,45 @@ inline void getPosition() {
   previousRight = rightRevolutions;
 }
 
+bool calibrateBnoAndSave(imu& bno) {
+    Calibration_t s{};
+    unsigned long start = millis();
+    const unsigned long TIMEOUT_MS = 60000; 
 
+    while (true) {
+        bno.calibration_status(s);
+        if (s.sys == 3 && s.gyro == 3 && s.accel == 3 && s.mag == 3)
+            break;
+        if (millis() - start > TIMEOUT_MS)
+            return false; // calibration failed
 
+        vTaskDelay(pdMS_TO_TICKS(200)); 
+    }
 
+    CalibProfile_t p;
+    bno.getOffsets(p);
 
+    EEPROM.write(CALIB_FLAG_ADDR,CALIB_MAGIC);
+    EEPROM.put(CALIB_DATA_ADDR, p.data);
+    EEPROM.commit();
+    Serial.println("BNO calibration saved to EEPROM");
+    return true;
+}
 
-
+bool loadBnoCalibration(imu& bno)
+{
+  if(EEPROM.read(CALIB_FLAG_ADDR) == CALIB_MAGIC)
+  {
+    CalibProfile_t p;
+    EEPROM.get(CALIB_DATA_ADDR,p.data);
+    bno.setOffsets(p);
+    return true;
+  }
+  
+  return false; 
+  
+    
+}
 
 
 
@@ -950,7 +970,7 @@ void setup() {
   //   // put your setup code here, to run once:
   Serial.begin(115200);
 
-  EEPROM.begin(32);  // Allocate 512 bytes for EEPROM emulation
+  EEPROM.begin(EEPROM_SIZE);  // Allocate 512 bytes for EEPROM emulation
   pinMode(selectorPin, INPUT_PULLUP);
   pinMode(changePin, INPUT_PULLUP);
 
@@ -1000,30 +1020,25 @@ void setup() {
   initialise(c_q, MAX_H * MAX_W);  //queue initialisation for storing row and coloumn
   initialise(r_q, MAX_H * MAX_W);
   update_mms_maze();
-  //log("Khalast setup");
-  Wire.begin(21, 16);
-  bno = Adafruit_BNO055(55, 0x29, &Wire);
-  //while (!Serial) delay(10);
-  ////Serial.println("start");
-  if (!bno.begin())  // lol
+  // log("Khalast setup");
+  bno.set_mode(operation_mode::IMU);//bno already started up before setup //wire.begin() is in bno constructor
+  delay(20);
+  
+  if (!bno.isConnected())  // lol
   {
     ////Serial.println("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
     while (1)
       ;
   }
 
+  //check button to calibrate bno
+  if(!loadBnoCalibration(bno))
+  {
+    Serial.println("No BNO calibration data!");
+  }
+  
 
-  //bno.setSensorOffsets(calib);
-
-  // Set operation mode to NDOF_FMC_OFF (9-axis fusion with fast mag calibration off)
-  bno.setMode(OPERATION_MODE_IMUPLUS);
-  delay(20);
-
-  //delay(1000);
-  bno.setExtCrystalUse(true);
   ////Serial.println("done withe the bno");
-  // digitalWRite(leftMotorForward , HIGH);
-  // digitalWrite(rightMotorForward,HIGH);
 
   leftEncoder.setPosition(0);
   rightEncoder.setPosition(0);
