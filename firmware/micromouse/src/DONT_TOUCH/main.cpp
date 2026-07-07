@@ -3,6 +3,8 @@
 #include <BNO055.h>
 #include <RotaryEncoderPCNT.h>
 #include <EEPROM.h>
+#include "esp_adc/adc_continuous.h"
+#include "esp_system.h"
 // #include <WiFi.h>
 // #include <WebServer.h>
 
@@ -125,16 +127,20 @@ int right_revolutions, prev_right_revolutions;
 double xPosition = 0, yPosition = 0;
 double yaw = 0;
 double yawOffset = 0;
-
+//###################################BNO######################################
 #define EEPROM_SIZE        32          // claude said nekhaleeh 64 instead not sure why tho fa i'll leave it keda
 #define CALIB_FLAG_ADDR    4           //after modebyte
 #define CALIB_DATA_ADDR    5           // actual calibProfile struct starts here 22 bytes
 #define CALIB_MAGIC        0x42        // if found then data is valid
 
-#define SCL_PIN 35
-#define SDA_PIN 33
-imu bno(SCL_PIN,SDA_PIN,I2C_NUM_0, 0x29);
+#define SCL_PIN            16         
+#define SDA_PIN            21  
+#define yawJumpThresh  30        //--------------------------------------------------------------------------------------------->need to set this
+portMUX_TYPE yawMux = portMUX_INITIALIZER_UNLOCKED; 
+TaskHandle_t bnoOffsetTaskHandle = NULL;
+SemaphoreHandle_t bnoMutex;
 
+imu bno(SCL_PIN,SDA_PIN,I2C_NUM_0, 0x29);
 
 
 constexpr uint8_t ADC1_0 = 1;
@@ -144,13 +150,13 @@ constexpr uint8_t ADC1_3 = 4;
 constexpr uint8_t ADC1_4 = 5;
 constexpr uint8_t ADC1_5 = 6;
 
-#define frontrightThresh 100
-#define frontleftThresh 100
-#define leftThresh 100
-#define rightThresh 100
-#define leftdiagonalThresh 100      //----------------------------------------------------------------------need to set these
-#define rightdiagonalThresh 100     //----------------------------------------------------------------------need to set these
-
+int frontrightThresh = 100;
+int frontleftThresh = 100;
+int leftThresh = 100;
+int rightThresh = 100;
+int leftdiagThresh = 50;   
+int rightdiagThresh = 50;   
+int SAMPLES_PER_BURST = 32; 
 
 struct IR {
   uint8_t trig_pin;
@@ -166,7 +172,18 @@ IR right_diagonal_ir = { 34, ADC1_4 };
 
 std::array ir_array = { front_left_ir, front_right_ir, left_ir, right_ir, left_diagonal_ir, right_diagonal_ir };
 int readings[6];
+bool leftEdge;
+bool rightEdge;
 
+int currentSensor = 0;
+bool litPhase = false;
+int32_t darkVal = 0;
+int prevLeftDiag = 0;
+int prevRightDiag = 0;
+
+adc_continuous_handle_t adcHandle = NULL;
+TaskHandle_t irTaskHandle = NULL;
+SemaphoreHandle_t readingsMutex = NULL;
 
 
 
@@ -559,34 +576,97 @@ void exploreToStart() {
 int theoreticalHeading = 0;
 
 
-inline void READIRS() {
-  // implement reading irs
+int32_t readOneBurst() {
+  adc_continuous_start(adcHandle);
+  ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50)); 
 
-  int i = 0;
-  for (const auto &[trig_pin, echo_pin] : ir_array) {
-    int lit_val = 0, dark_val = 0;
-    for (int j = 0; j < 5; j++) {
-      digitalWrite(trig_pin, LOW);
-      dark_val += analogRead(echo_pin);
-      // u_long a = micros();
-      digitalWrite(trig_pin, HIGH);
-      delayMicroseconds(5);
-      lit_val += analogRead(echo_pin);
-      digitalWrite(trig_pin, LOW);
-      // u_long b = micros();
-      //delay(100);
+  uint8_t buf[SOC_ADC_DIGI_RESULT_BYTES * SAMPLES_PER_BURST];
+  uint32_t outLen = 0;
+  esp_err_t readErr = adc_continuous_read(adcHandle, buf, sizeof(buf), &outLen, 0);
+
+  int32_t sum = 0;
+  int count = 0;
+  if (readErr == ESP_OK) {
+    for (uint32_t i = 0; i < outLen; i += SOC_ADC_DIGI_RESULT_BYTES) {
+      sum += ((adc_digi_output_data_t*)&buf[i])->type2.data;
+      count++;
     }
-    ////Serial.print(String((lit_val - dark_val) / 5) + " ");
-    readings[i] = (lit_val - dark_val) / 5;
-    i++;
   }
-  return;
-  ////Serial.println();
+  adc_continuous_stop(adcHandle);
+  return (count > 0) ? (sum / count) : 0;
+}
+
+static bool IRAM_ATTR onConvDone(adc_continuous_handle_t h, const adc_continuous_evt_data_t *e, void *arg) {
+  BaseType_t mustYield = pdFALSE;
+  vTaskNotifyGiveFromISR(irTaskHandle, &mustYield);
+  return mustYield == pdTRUE;
+}
+
+void configureChannel(uint8_t echo_pin) {
+  adc_digi_pattern_config_t pattern[1] = {};
+  pattern[0].atten = ADC_ATTEN_DB_12;
+  pattern[0].channel = (adc_channel_t)(echo_pin - 1);
+  pattern[0].unit = ADC_UNIT_1;
+  pattern[0].bit_width = SOC_ADC_DIGI_MAX_BITWIDTH;
+
+  adc_continuous_config_t cfg = {};
+  cfg.sample_freq_hz = 80000;
+  cfg.conv_mode = ADC_CONV_SINGLE_UNIT_1;
+  cfg.format = ADC_DIGI_OUTPUT_FORMAT_TYPE2;
+  cfg.pattern_num = 1;
+  cfg.adc_pattern = pattern;
+  adc_continuous_config(adcHandle, &cfg);
+}
+
+void irTask(void *pv) {
+  while(1){
+    IR &s = ir_array[currentSensor];
+
+    if (!litPhase) {
+      configureChannel(s.echo_pin);      
+      digitalWrite(s.trig_pin, LOW);
+      darkVal = readOneBurst();
+      digitalWrite(s.trig_pin, HIGH);
+      litPhase = true;
+    } else {
+      int32_t litVal = readOneBurst();
+      digitalWrite(s.trig_pin, LOW);
+
+      xSemaphoreTake(readingsMutex, portMAX_DELAY);
+      readings[currentSensor] = litVal - darkVal;
+      xSemaphoreGive(readingsMutex);
+
+      currentSensor = (currentSensor + 1) % ir_array.size();
+      litPhase = false;
+    }
+  }
+}
+
+
+
+
+void setupIR() {
+  for (const auto &[trig_pin, echo_pin] : ir_array) {
+    pinMode(trig_pin, OUTPUT);
+    digitalWrite(trig_pin, LOW);
+    pinMode(echo_pin,INPUT);
+  }
+  adc_continuous_handle_cfg_t adc_config = {};
+  adc_config.max_store_buf_size = SAMPLES_PER_BURST * SOC_ADC_DIGI_RESULT_BYTES * 4;
+  adc_config.conv_frame_size = SAMPLES_PER_BURST * SOC_ADC_DIGI_RESULT_BYTES;
+  Serial.printf("new_handle: %d\n", adc_continuous_new_handle(&adc_config, &adcHandle));
+  
+  adc_continuous_evt_cbs_t cbs = { .on_conv_done = onConvDone };
+  adc_continuous_register_event_callbacks(adcHandle, &cbs, NULL);
+
+  readingsMutex = xSemaphoreCreateMutex();
+  configureChannel(ir_array[0].echo_pin);
+
+  xTaskCreate(irTask, "irTask", 4096, NULL, 3, &irTaskHandle);
 }
 
 bool frontEmergency()
 {
-  READIRS();
   if (readings[0] > 1250 || readings[1] > 1250) return 1;
   return 0;
 }
@@ -594,49 +674,46 @@ bool frontEmergency()
 
 bool wallFront() {
   for (int i = 0; i < 10; i++) {
-    READIRS();
     if (readings[0] > frontleftThresh && readings[1] > frontrightThresh) return 1;
   }
   return 0;
 }
 bool wallRight() {
   for (int i = 0; i < 10; i++) {
-    READIRS();
     if (readings[3] > rightThresh) return 1;
   }
   return 0;
 }
 bool wallLeft() {
   for (int i = 0; i < 10; i++) {
-    READIRS();
     if (readings[2] > leftThresh) return 1;
   }
   return 0;
 }
+
+inline void checkDiagonalEdges() {
+  bool leftWasWall  = prevLeftDiag  > leftdiagThresh;
+  bool rightWasWall = prevRightDiag > rightdiagThresh;
+
+  bool leftIsWall  = readings[4] > leftdiagThresh;
+  bool rightIsWall = readings[5] > rightdiagThresh;
+
+  leftEdge  = (leftWasWall  && !leftIsWall);   // wall just disappeared = edge/corner point
+  rightEdge = (rightWasWall && !rightIsWall);
+
+  prevLeftDiag  = readings[4];
+  prevRightDiag = readings[5];
+}
+
+bool edgeLeft()  { return leftEdge; }
+bool edgeRight() { return rightEdge; }
 
 
 
 
 //1 4
 void turn(double angle) {
-  // analogWrite(rightMotorForward, 0);
-  // analogWrite(leftMotorForward, 0);
-  // analogWrite(leftMotorBackward, 0);
-  // analogWrite(rightMotorBackward, 0);
-
-  // analogWrite(rightMotorForward, 255);
-  // analogWrite(leftMotorForward, 255);
-  // analogWrite(rightMotorBackward, 255);
-  // analogWrite(leftMotorBackward, 255);
-  // // delayMicroseconds(20);
-  // delay(50);
-  // analogWrite(leftMotorForward, 0);
-  // analogWrite(leftMotorBackward, 0);
-  // analogWrite(rightMotorForward, 0);
-  // analogWrite(rightMotorBackward, 0);
-
-
-
+  
   getPosition();
   double desiredAngle = theoreticalHeading + angle;
   double error = angleDiff(yaw, desiredAngle);
@@ -660,14 +737,14 @@ void turn(double angle) {
     Serial.print(desiredAngle);
     Serial.print(" ");
     Serial.println(yaw);
-    //Serial.print(" ");
-    //Serial.println(error);
+    Serial.print(" ");
+    Serial.println(error);
     speed = kp * error + kd * getRate();
     speed = fixSpeed(speed);
-    // ////Serial.print(" ");
-    // ////Serial.print(speed);
-    // ////Serial.print(" ");
-    // ////Serial.println(getRate());
+    Serial.print(" ");
+    Serial.print(speed);
+    Serial.print(" ");
+    Serial.println(getRate());
     direction = (speed > 0 ? true : false);
     analogWrite(leftMotorForward, (direction)*abs(speed));
     analogWrite(leftMotorBackward, (!direction) * abs(speed));
@@ -855,18 +932,115 @@ double angleDiff(double start, double goal) {
   return (abs(angle) < abs(angle2) ? angle : angle2);
 }
 
+/*#################################BNO#######################################*/
+inline float getRawYaw() {
+  xSemaphoreTake(bnoMutex, portMAX_DELAY);
+  vec_3 euler = bno.euler();
+  xSemaphoreGive(bnoMutex);
+  return euler.x() /* *180.0/PI*/; //changed from rad to degrees
+}
 
 inline float getOrientationX() {
-  return bno.euler().vec[0] * 180.0/PI; //changed from rad to degrees cuz the rest of the code uses degrees
+  double offset;
+  portENTER_CRITICAL(&yawMux);
+  offset = yawOffset;
+  portEXIT_CRITICAL(&yawMux);
+  return fmod(getRawYaw()- offset + 360.0,360);
 }
 
 inline float getRate() {
-  return bno.gyro().vec[0] * 180/PI;
+  xSemaphoreTake(bnoMutex, portMAX_DELAY);
+  vec_3 gyro = bno.gyro();
+  xSemaphoreGive(bnoMutex);
+  return gyro.vec[0] * 180/PI;
   //vec[2]-->rate about z  // might change it to gyro.z msh x , haven't tested yet -----------------------------------------------------------------------IMPORTANT
 }
 
 inline float getLin() {
-  return bno.linear_acceleration().vec[2];  // Z axis
+  xSemaphoreTake(bnoMutex, portMAX_DELAY);
+  vec_3 lin = bno.linear_acceleration();
+  xSemaphoreGive(bnoMutex);
+  return lin.vec[2];  // Z axis
+}
+
+bool calibrateBnoAndSave(imu& bno) {
+    Calibration_t s{};
+    unsigned long start = millis();
+    const unsigned long TIMEOUT_MS = 120000; 
+
+    Serial.println("BNO Calibration...");
+    while (true) {
+        bno.calibration_status(s);
+        Serial.print("sys = ");Serial.print(s.sys);
+        Serial.print("gyro = ");Serial.print(s.gyro);
+        Serial.print("accel = ");Serial.print(s.accel);
+        Serial.print("mag = ");Serial.println(s.mag);
+        if (s.sys == 3 && s.gyro == 3 && s.accel == 3 && s.mag == 3)
+            break;
+        if (millis() - start > TIMEOUT_MS)
+        {
+          Serial.println("BNO Calibration timed out :(");
+          return false; 
+        }
+            
+        vTaskDelay(pdMS_TO_TICKS(200)); 
+    }
+        
+    CalibProfile_t p;
+    bno.getOffsets(p);
+    // for (int i = 0; i < 22; i++) { Serial.print(p.data[i], HEX); Serial.print(" "); }
+    // Serial.println();
+
+    EEPROM.write(CALIB_FLAG_ADDR,CALIB_MAGIC);
+    EEPROM.put(CALIB_DATA_ADDR, p.data);
+    EEPROM.commit();
+    Serial.println("BNO calibration saved to EEPROM");
+    return true;
+}
+
+bool loadBnoCalibration(imu& bno)
+{
+  if(EEPROM.read(CALIB_FLAG_ADDR) == CALIB_MAGIC)
+  {
+    CalibProfile_t p;
+    EEPROM.get(CALIB_DATA_ADDR,p.data);
+    bno.setOffsets(p);
+    for (int i = 0; i < 22; i++) { Serial.print(p.data[i], HEX); Serial.print(" "); }
+    Serial.println();
+    return true;
+  }
+
+  return false;     
+}
+
+void bnoOffsetTask(void *pv)
+{
+  double prevRawYaw = getRawYaw();
+  while(1)
+  {
+    vTaskDelay(pdMS_TO_TICKS(20));
+    
+    double rawYaw   = getRawYaw();
+    double gyroRate = getRate();                     
+    double dt       = pdMS_TO_TICKS(20) * portTICK_PERIOD_MS / 1000.0;
+
+    double actualDelta   = angleDiff(prevRawYaw, rawYaw); 
+    double expectedDelta = gyroRate * dt;
+
+    if (fabs(actualDelta - expectedDelta) > yawJumpThresh) {
+      portENTER_CRITICAL(&yawMux);
+      yawOffset += actualDelta - expectedDelta;
+      portEXIT_CRITICAL(&yawMux);
+      Serial.println("------------------------------BNO jump detected, discrepancy=" + String(actualDelta - expectedDelta)
+                      + " new offset=" + String(yawOffset));
+    }
+    
+    // Serial.println("raw=" + String(rawYaw) + " actualΔ=" + String(actualDelta)
+    //                 + " expectedΔ=" + String(expectedDelta)
+    //                 + " discrepancy=" + String(actualDelta - expectedDelta));
+    prevRawYaw = rawYaw;
+  
+  }
 }
 
 inline void getPosition() {
@@ -889,46 +1063,6 @@ inline void getPosition() {
 
   previousLeft = leftRevolutions;
   previousRight = rightRevolutions;
-}
-
-bool calibrateBnoAndSave(imu& bno) {
-    Calibration_t s{};
-    unsigned long start = millis();
-    const unsigned long TIMEOUT_MS = 60000; 
-
-    while (true) {
-        bno.calibration_status(s);
-        if (s.sys == 3 && s.gyro == 3 && s.accel == 3 && s.mag == 3)
-            break;
-        if (millis() - start > TIMEOUT_MS)
-            return false; // calibration failed
-
-        vTaskDelay(pdMS_TO_TICKS(200)); 
-    }
-
-    CalibProfile_t p;
-    bno.getOffsets(p);
-
-    EEPROM.write(CALIB_FLAG_ADDR,CALIB_MAGIC);
-    EEPROM.put(CALIB_DATA_ADDR, p.data);
-    EEPROM.commit();
-    Serial.println("BNO calibration saved to EEPROM");
-    return true;
-}
-
-bool loadBnoCalibration(imu& bno)
-{
-  if(EEPROM.read(CALIB_FLAG_ADDR) == CALIB_MAGIC)
-  {
-    CalibProfile_t p;
-    EEPROM.get(CALIB_DATA_ADDR,p.data);
-    bno.setOffsets(p);
-    return true;
-  }
-  
-  return false; 
-  
-    
 }
 
 
@@ -965,7 +1099,7 @@ void modeChooser() {
   } 
 }
 
-
+/*
 void setup() {
   //   // put your setup code here, to run once:
   Serial.begin(115200);
@@ -1270,4 +1404,69 @@ void loop() {
     }
   }
   //READIRS();
+}*/
+
+
+void setup()
+{
+  EEPROM.begin(EEPROM_SIZE);
+  Serial.begin(115200);
+  delay(2000);
+  Serial.println(esp_reset_reason());
+  bno.init();
+  delay(1000);
+  bno.isConnected()?Serial.println("BNO Connected yayy"):Serial.println("lol no BNO detected!");
+  delay(1000);
+  
+  Calibration_t s{};
+  bno.calibration_status(s);
+  Serial.print("pre-load calib: ");
+  Serial.print(s.sys); Serial.print("/");
+  Serial.print(s.gyro); Serial.print("/");
+  Serial.print(s.accel); Serial.print("/");
+  Serial.println(s.mag);
+  if(loadBnoCalibration(bno) == 0)
+  {
+    Serial.println("oops No bno offsets to load :(");
+    calibrateBnoAndSave(bno);
+  }
+  else
+  {
+    Serial.println("Calibration offsets loaded :)");
+    bno.calibration_status(s);
+    Serial.print("post-load calib: ");
+    Serial.print(s.sys); Serial.print("/");
+    Serial.print(s.gyro); Serial.print("/");
+    Serial.print(s.accel); Serial.print("/");
+    Serial.println(s.mag);
+  }
+  delay(2000);
+  bnoMutex = xSemaphoreCreateMutex();
+  xTaskCreate(bnoOffsetTask, "bnoOffsetTask", 2048, NULL, 1, &bnoOffsetTaskHandle);
+  
+  setupIR();
+
+  Serial.println("khalast setup");
+}
+
+void loop()
+{
+
+  // for(auto i : readings)
+  // {
+  //   Serial.print(i);Serial.print("  ");
+  // }
+
+  // yaw = getOrientationX();
+  // Serial.print("    yaw: ");
+  // Serial.println(yaw);
+  // delay(5);
+  
+  // checkDiagonalEdges();
+  // if(edgeLeft()) {Serial.println("EDGE LEFT");delay(2000);}
+  // if(edgeRight()) {Serial.println("EDGE RIGHT");delay(2000);}
+  // if(frontEmergency()) {Serial.println("FRONT");delay(2000);}
+  // if(wallLeft()) {Serial.println("WALL LEFT");delay(2000);}
+  // if(wallRight()) {Serial.println("WALL RIGHT");delay(2000);}
+
 }
