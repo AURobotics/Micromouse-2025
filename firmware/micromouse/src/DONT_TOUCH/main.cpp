@@ -174,7 +174,17 @@ std::array ir_array = { front_left_ir, front_right_ir, left_ir, right_ir, left_d
 int readings[6];
 bool leftEdge;
 bool rightEdge;
-
+/*
+  3amalt leftEdge and rightEdge global variables 3ashan we 
+  need them saved 3ashan once i saw an edge lazem afdal 
+  fakra eny shoft el edge tool el move le7ad ma atla3 men
+  el tile
+  fa checkDiagonalEdges() updates global variables
+  edgeRight(),edgeLeft() just read the global variables
+  bas 3ashan yeb2o shabah ba2y el functions to be easily 
+  readable
+  IMPORTANT:entering every tile leftEdge and rightEdge need to be set to false
+*/
 int currentSensor = 0;
 bool litPhase = false;
 int32_t darkVal = 0;
