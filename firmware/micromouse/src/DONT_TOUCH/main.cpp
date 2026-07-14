@@ -43,6 +43,7 @@ double angleDiff(double start, double goal);
 double fixSpeed(double speed);
 inline float getLin();
 inline double calculateDistance(double x, double y);
+inline double ekfCalculateDistance(double x, double y);
 
 
 #define MAX_H 18
@@ -95,19 +96,10 @@ short dis[MAX_H][MAX_W] = {
 queue r_q;
 queue c_q;
 
-
-
-
-
-
-
-
 #define ticksperlafa 1400
 #define circumference 10.681
 #define distance_between_wheels 9
 #define PI 3.141592653589
-
-
 
 // right motor pins
 #define rightMotorForward 15
@@ -129,6 +121,7 @@ int right_revolutions, prev_right_revolutions;
 double xPosition = 0, yPosition = 0;
 double yaw = 0;
 double yawOffset = 0;
+inline float getRawYaw();
 //###################################BNO######################################
 #define EEPROM_SIZE        32          
 #define CALIB_FLAG_ADDR    4           //after modebyte
@@ -137,7 +130,7 @@ double yawOffset = 0;
 
 #define SCL_PIN            16         
 #define SDA_PIN            21  
-#define yawJumpThresh  30        //--------------------------------------------------------------------------------------------->need to set this
+#define yawJumpThresh  10         //--------------------------------------------------------------------------------------------->need to set this
 portMUX_TYPE yawMux = portMUX_INITIALIZER_UNLOCKED; 
 TaskHandle_t bnoOffsetTaskHandle = NULL;
 SemaphoreHandle_t bnoMutex;
@@ -157,8 +150,8 @@ int frontrightThresh = 100;
 int frontleftThresh = 100;
 int leftThresh = 100;
 int rightThresh = 100;
-int leftdiagThresh = 50;   
-int rightdiagThresh = 50;   
+int leftdiagThresh = 25;   
+int rightdiagThresh = 30;   
 int SAMPLES_PER_BURST = 32; 
 
 struct IR {
@@ -630,8 +623,8 @@ float irToDist(int reading,int sensor) {
   for (int i = 0; i < 5; i++) {
     int r0 = calReadings[sensor][i], r1 = calReadings[sensor][i+1];
     if (reading <= r0 && reading >= r1) {
-      float t = (float)(r0 - reading) / (float)(r0 - r1);
-      return calDistances[i] + t * (calDistances[i+1] - calDistances[i]);
+      float m = (float)(r0 - reading) / (float)(r0 - r1);
+      return calDistances[i] + m * (calDistances[i+1] - calDistances[i]);
     }
   }
 
@@ -705,6 +698,7 @@ void irTask(void *pv) {
       currentSensor = (currentSensor + 1) % ir_array.size();
       litPhase = false;
     }
+    vTaskDelay(1);
   }
 }
 
@@ -774,10 +768,41 @@ inline void checkDiagonalEdges() {
 bool edgeLeft()  { return leftEdge; }
 bool edgeRight() { return rightEdge; }
 
+inline void e3delHeadingUsingWall(){ 
+  if(irToDist(readings[0],0) < 15 && irToDist(readings[1],1) < 15)
+  {
+    while(abs(irToDist(readings[0],0) - irToDist(readings[1],1)) > 0.5)
+    {
+      if(irToDist(readings[0],0) > irToDist(readings[1],1))
+      {
+        analogWrite(leftMotorForward, 80);
+        analogWrite(leftMotorBackward, -80);
 
+        analogWrite(rightMotorForward, -80);
+        analogWrite(rightMotorBackward, 80);
+        delay(10);
+      }
+
+      if(irToDist(readings[0],0) < irToDist(readings[1],1))
+      {
+        analogWrite(leftMotorForward, -80);
+        analogWrite(leftMotorBackward, 80);
+
+        analogWrite(rightMotorForward, 80);
+        analogWrite(rightMotorBackward, -80);
+        delay(10);
+      }
+    }
+    analogWrite(leftMotorForward, 0);
+    analogWrite(leftMotorBackward, 0);
+    analogWrite(rightMotorForward, 0);
+    analogWrite(rightMotorBackward, 0);
+  }
+  
+}
 class PoseEKF : public ekf {
 public:
-  PoseEKF() : ekf(3, 2) {}
+  PoseEKF() : ekf(3, 1) {} //3 states (x,y,theta)// 1 control v
 
   void Init() override {
     for (int i = 0; i < NUMX; i++)
@@ -787,15 +812,16 @@ public:
 
     Q(0,0) = 0.02f; Q(0,1) = 0.0f;          
     Q(1,0) = 0.0f;  Q(1,1) = 30.0f; //------------------------------------------------------------------------need to tune
+    Q(2,2) = 1.0f; //-----------------------------------------------------------------------------------------need to tune
   }
 
   dspm::Mat StateXdot(dspm::Mat &x, float *u) override {
     dspm::Mat xdot(3, 1);
-    float v = u[0], omega = u[1];           
+    float v = u[0];      
     float thetaRad = x(2, 0) * PI / 180.0f; 
     xdot(0,0) = v * sinf(thetaRad);
     xdot(1,0) = v * cosf(thetaRad);
-    xdot(2,0) = omega;  // degrees
+    xdot(2,0) = 0.0f; // no gyro
     return xdot;
   }
 
@@ -806,9 +832,9 @@ public:
     F(1,0)=0; F(1,1)=0; F(1,2)=-v*sinf(thetaRad) * PI / 180.0f;
     F(2,0)=0; F(2,1)=0; F(2,2)=0;
 
-    G(0,0)=sinf(thetaRad); G(0,1)=0;
-    G(1,0)=cosf(thetaRad); G(1,1)=0;
-    G(2,0)=0;              G(2,1)=1;
+    G(0,0)=sinf(thetaRad);
+    G(1,0)=cosf(thetaRad);
+    G(2,0)=0;
   }
 };
 
@@ -816,6 +842,7 @@ PoseEKF poseEkf;
 
 long ekfPrevRightTicks = 0;
 long ekfPrevLeftTicks = 0;
+const float headingProcessNoise = 4.0f; //--------------------------------------------------------need to tune this
 
 void ekfPredict(float dt) {
   long rightPos = rightEncoder.position();
@@ -831,11 +858,12 @@ void ekfPredict(float dt) {
   float leftDist  = lTicks / (float)ticksperlafa * circumference;
 
   float v = ((rightDist + leftDist) / 2.0f) / dt;
-  float omega = getRate();// degrees
+  // float omega = getRate();// degrees
 
-  float u[2] = { v, omega };
+  float u[1] = { v };
   poseEkf.Process(u, dt);
-
+  poseEkf.P(2,2) += headingProcessNoise * dt;
+  // poseEkf.X(2,0) = angleDiff(0, poseEkf.X(2,0));
   // poseEkf.X(2,0) = yaw;
 }
 
@@ -843,10 +871,10 @@ void ekfCorrectHeading() {
   float z = getOrientationX() ; 
   float expected = poseEkf.X(2, 0);//unwrapped
 
-  //wrapped to [-pi, pi] 
-  float diff = fmodf(z - expected, 2 * PI);
-  if (diff > PI)  diff -= 2 * PI;
-  if (diff < -PI) diff += 2 * PI;
+  //wrapped to [0, 360] 
+  float diff = angleDiff(expected,z);
+  if (diff > 180)  diff -= 360.0f;
+  if (diff < -180) diff += 360.0f;
 
   float adjustedMeasured = expected + diff;    // same physical heading as z,
                                                 // but expressed in expected's turn-count frame
@@ -856,9 +884,12 @@ void ekfCorrectHeading() {
 
   float measuredArr[1] = { adjustedMeasured };
   float expectedArr[1] = { expected };
-  float R[1] = { 4.0f };
+  float R[1] = { 0.5f };// i somewhat trust imu heading so small value----------------------------------------------------------------need to tune
 
   poseEkf.Update(H, measuredArr, expectedArr, R);
+  poseEkf.X(2,0) -= (poseEkf.X(2,0)>360)? 360:0;
+  poseEkf.X(2,0) += (poseEkf.X(2,0)<0)? 360:0;
+  // poseEkf.X(2,0) = angleDiff(0, poseEkf.X(2,0));  
 }
 
 int leftSign[4]    = { -1, +1, +1, -1 };  // side-sensor sign, indexed by curr_dir
@@ -951,44 +982,33 @@ void ekfUpdate() {
 
 //1 4
 void turn(double angle) {
-  
-  getPosition();
   ekfUpdate();
-  double desiredAngle = theoreticalHeading + angle;
-  double error = angleDiff(yaw, desiredAngle);
+  double desiredAngle = poseEkf.X(2,0) + angle;
+  desiredAngle = fmod(desiredAngle + 360.0, 360.0); 
+  double error = angleDiff(poseEkf.X(2,0), desiredAngle);
   bool direction = (error > 0 ? true : false);  // true -> turn right | false -> turn left
   double errorPrev = error;
   double totalerror = 0;
-  unsigned long t = millis();
+  unsigned long lastPrint = millis();
+  double minSpeed = 50;//--------------------------------------------------------------------------need to tune this
 
   double kp = 1.5;  // Kp and Kd will be set with testing
-  double kd = -0.05;
+  double kd = -0.09 ;
 
   double speed = 100;
 
   int counter = 0;
 
-  while (abs(error) > 2 || fabs(getRate()) > 0.5) {
-    /*maybe we can change el conditions hena 3ashan mayo2afsh ba3d kol turn?
-    3ashan hwa beyefdal wa2ef showaya keda ba3d ma yelef abl ma yetla3 men 
-    el loop fa maybe el speed is small mesh ader ye7arako bas its not small 
-    enough eno yetla3 men el loop?*/
-    getPosition();
+  while (abs(error) > 1 || fabs(getRate()) > 0.5) {
     ekfUpdate();
-    error = angleDiff(yaw, desiredAngle);
+    error = angleDiff(poseEkf.X(2,0), desiredAngle);
 
-    Serial.print("turning ");
-    Serial.print(desiredAngle);
-    Serial.print(" yaw =");
-    Serial.println(yaw);
-    Serial.print(" error =");
-    Serial.println(error);
     speed = kp * error + kd * getRate();
     speed = fixSpeed(speed);
-    Serial.print(" speed =");
-    Serial.print(speed);
-    Serial.print(" ");
-    Serial.println(getRate());
+    if (fabs(speed) > 1 && fabs(speed) < minSpeed) {
+      speed = (speed > 0 ? minSpeed : -minSpeed);
+    }
+    
     direction = (speed > 0 ? true : false);
     analogWrite(leftMotorForward, (direction)*abs(speed));
     analogWrite(leftMotorBackward, (!direction) * abs(speed));
@@ -999,20 +1019,38 @@ void turn(double angle) {
 
     errorPrev = error;
     totalerror += error;
-    t = millis();
+    
     if (abs(getRate()) < 0.1) counter++;
     if (counter >= 40) break;
+
+    if(lastPrint-millis() >=100)
+    {
+      Serial.print("turning ");
+      Serial.print(desiredAngle);
+      Serial.print(" yaw =");
+      Serial.print(poseEkf.X(2,0));
+      Serial.print(" error =");
+      Serial.print(error);
+      Serial.print(" speed =");
+      Serial.print(speed);
+      Serial.print(" rate =");
+      Serial.print(getRate());
+      Serial.print("  yaw offset =");
+      Serial.println(yawOffset);
+      lastPrint = millis();
+
+    }
   }
   Serial.println("done turning");
-  getPosition();
   ekfUpdate();
-  //Serial.println(yaw);
-  // analogWrite(leftMotorForward, 0);
-  // analogWrite(leftMotorBackward, 0);
-  // analogWrite(rightMotorForward, 0);
-  // analogWrite(rightMotorBackward, 0);
-  theoreticalHeading += angle;
-  theoreticalHeading = (theoreticalHeading + 360) % 360;
+  
+  analogWrite(leftMotorForward, 0);
+  analogWrite(leftMotorBackward, 0);
+  analogWrite(rightMotorForward, 0);
+  analogWrite(rightMotorBackward, 0);
+  theoreticalHeading = poseEkf.X(2,0);
+  theoreticalHeading -= (theoreticalHeading>360)? 360:0;
+  theoreticalHeading += (theoreticalHeading<0)? 360:0;
 }
 //3 -1
 //04 -1
@@ -1024,7 +1062,7 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
 {                                       // just need to add to make it stop using the irs
   double desiredDistance = tiles * 19.7;  // el tile el mafrood 18cm, bas we found it would move slightly less than what we wanted, fa we increased it
 
-  double startX = xPosition, startY = yPosition;
+  double startX = poseEkf.X(0,0), startY = poseEkf.X(1,0);
   double startYaw = theoreticalHeading;
 
   long startRight = rightEncoder.position();
@@ -1036,15 +1074,16 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
   leftEncoder.setPosition(0);
   previousLeft=0;
   previousRight=0;
-
+  ekfPrevRightTicks = 0; 
+  ekfPrevLeftTicks = 0;
   // for the distance
-  double errorL = desiredDistance - calculateDistance(startX, startY);
+  double errorL = desiredDistance - ekfCalculateDistance(startX, startY);
   double errorLPrev = errorL;
 
   bool direction = (errorL >= 0 ? true : false);  // true -> forward, false -> backward
 
   // to keep moving staight
-  double errorA = angleDiff(yaw, startYaw);
+  double errorA = angleDiff(poseEkf.X(2,0), startYaw);
   double errorAPrev = errorA;
 
 
@@ -1075,7 +1114,16 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
 
   while ((abs(errorL) > 0.2) && timeout_ctr < 50)  // this 1 might change
   {
-    //READIRS();
+    e3delHeadingUsingWall();
+    checkDiagonalEdges();
+    if(edgeRight() or edgeLeft())
+    {
+      analogWrite(leftMotorForward, 0);
+      analogWrite(leftMotorBackward, 0);
+      analogWrite(rightMotorForward, 0);
+      analogWrite(rightMotorBackward, 0);
+      return 0;
+    }
     rightTicks = rightEncoder.position() - startRight;
     leftTicks = leftEncoder.position() - startLeft;
     long deltaTicks = rightTicks - leftTicks;
@@ -1084,15 +1132,13 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
     //     integralval += kiTicks*(deltaTicks - errorTicksPrev)*(millis() - t) ;
     // speedTicks = KpTicks*deltaTicks + KdTicks * (deltaTicks - errorTicksPrev)/(millis() - t)  + integralval;
 
-    getPosition();
-    errorL = desiredDistance - calculateDistance(startX, startY);
-    errorA = angleDiff(yaw, startYaw);
+    ekfUpdate();
+    errorL = desiredDistance - ekfCalculateDistance(startX, startY);
+    errorA = angleDiff(poseEkf.X(2,0), startYaw);
 
 
     speedl = Kpl * errorL + Kdl * (errorL - errorLPrev) / (millis() - t);
     speeda = Kpa * errorA + Kda * getRate();
-
-
 
     direction = (speedl >= 0 ? true : false);
 
@@ -1158,7 +1204,7 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
 double fixSpeed(double speed) {
   int maxx = 100;
   speed = constrain(speed, -maxx, maxx);
-  if (abs(speed) < 5) return 0;
+  if (abs(speed) < 2) return 0;
   if (speed > 0) return map(speed, 0, maxx, 45, maxx);
   if (speed < 0) return map(speed, -maxx, 0, -maxx, -45);
   else return 0;
@@ -1167,14 +1213,16 @@ double fixSpeed(double speed) {
 inline double calculateDistance(double x, double y) {
   return sqrt(pow(x - xPosition, 2) + pow(y - yPosition, 2));
 }
+inline double ekfCalculateDistance(double x, double y){
+  return sqrt(pow(x - poseEkf.X(0,0), 2) + pow(y - poseEkf.X(1,0), 2));
+}
 
 double angleDiff(double start, double goal) {
   //goal  = (goal + 360) % 360.0;
-  goal += (goal > 360 ? -360 : 0);
-  goal += (goal < 0 ? 360 : 0);
-  double angle = goal - start;
-  double angle2 = angle + (angle < 0 ? 360 : -360);
-  return (abs(angle) < abs(angle2) ? angle : angle2);
+  double diff = fmod(goal - start, 360.0);
+  if (diff > 180) diff -= 360;
+  if (diff < -180) diff += 360;
+  return diff;
 }
 
 /*#################################BNO#######################################*/
@@ -1262,52 +1310,43 @@ void bnoOffsetTask(void *pv)
   double prevRawYaw = getRawYaw();
   while(1)
   {
-    vTaskDelay(pdMS_TO_TICKS(20));
-    
-    double rawYaw   = getRawYaw();
-    double gyroRate = getRate();                     
-    double dt       = pdMS_TO_TICKS(20) * portTICK_PERIOD_MS / 1000.0;
+    vTaskDelay(pdMS_TO_TICKS(10));
+    double rawYaw   = getRawYaw();                    
 
-    double actualDelta   = angleDiff(prevRawYaw, rawYaw); 
-    double expectedDelta = gyroRate * dt;
-
-    if (fabs(actualDelta - expectedDelta) > yawJumpThresh) {
+    if (fabs(angleDiff(prevRawYaw,rawYaw)) > yawJumpThresh) {
       portENTER_CRITICAL(&yawMux);
-      yawOffset += actualDelta - expectedDelta;
+      yawOffset += angleDiff(rawYaw, prevRawYaw); 
       portEXIT_CRITICAL(&yawMux);
-      Serial.println("------------------------------BNO jump detected, discrepancy=" + String(actualDelta - expectedDelta)
+      Serial.println("-------------------------------------BNO jump detected, discrepancy=" + String(angleDiff(prevRawYaw,rawYaw))
                       + " new offset=" + String(yawOffset));
     }
     
-    // Serial.println("raw=" + String(rawYaw) + " actualΔ=" + String(actualDelta)
-    //                 + " expectedΔ=" + String(expectedDelta)
-    //                 + " discrepancy=" + String(actualDelta - expectedDelta));
     prevRawYaw = rawYaw;
   
   }
 }
 
-inline void getPosition() {
-  double leftRevolutions = 1.0 * leftEncoder.position() / ticksperlafa;
-  double rightRevolutions = 1.0 * rightEncoder.position() / ticksperlafa;
+// inline void getPosition() {
+//   double leftRevolutions = 1.0 * leftEncoder.position() / ticksperlafa;
+//   double rightRevolutions = 1.0 * rightEncoder.position() / ticksperlafa;
 
-  double leftDistance = (leftRevolutions - previousLeft) * circumference;
-  double rightDistance = (rightRevolutions - previousRight) * circumference;
-  double distance = (leftDistance + rightDistance) / 2;
+//   double leftDistance = (leftRevolutions - previousLeft) * circumference;
+//   double rightDistance = (rightRevolutions - previousRight) * circumference;
+//   double distance = (leftDistance + rightDistance) / 2;
 
-  double encoderDelta = (rightDistance - leftDistance) / distance_between_wheels;  // won't use that , and this is in radian
-  double bnoDelta = (getOrientationX() - yaw);
-  double deltaAngle = bnoDelta;  // add the encoder delta to it if you want
+//   double encoderDelta = (rightDistance - leftDistance) / distance_between_wheels;  // won't use that , and this is in radian
+//   double bnoDelta = (getOrientationX() - yaw);
+//   double deltaAngle = bnoDelta;  // add the encoder delta to it if you want
 
-  yPosition += distance * cos((yaw + deltaAngle / 2) * PI / 180);
-  xPosition += distance * sin((yaw + deltaAngle / 2) * PI / 180);
-  //yaw += deltaAngle;  // or yaw = getOrientationX();
-  yaw = getOrientationX();
-  //yaw = (yaw+360)%360;
+//   yPosition += distance * cos((yaw + deltaAngle / 2) * PI / 180);
+//   xPosition += distance * sin((yaw + deltaAngle / 2) * PI / 180);
+//   //yaw += deltaAngle;  // or yaw = getOrientationX();
+//   yaw = getOrientationX();
+//   //yaw = (yaw+360)%360;
 
-  previousLeft = leftRevolutions;
-  previousRight = rightRevolutions;
-}
+//   previousLeft = leftRevolutions;
+//   previousRight = rightRevolutions;
+// }
 
 
 
@@ -1593,6 +1632,7 @@ void loop() {
         exploreToStart();
         Serial.println("done exploretostart");
         //log("done!!!! The best run is "+ current_run);
+        //add a vTaskDelay(1)? to not block other tasks
       }
     } else if (option == '1') {
       getPosition();
@@ -1654,10 +1694,10 @@ void setup()
 {
   EEPROM.begin(EEPROM_SIZE);
   Serial.begin(115200);
-  delay(2000);
+  delay(1000);
   Serial.println(esp_reset_reason());
   bno.init();
-  delay(1000);
+  delay(50);
   if(bno.isConnected())
   Serial.println("BNO Connected yayy");
   else
@@ -1665,8 +1705,7 @@ void setup()
   Serial.println("lol no BNO detected!");
   delay(50000);
   }
-  delay(1000);
-  
+  delay(10);
   Calibration_t s{};
   bno.calibration_status(s);
   Serial.print("pre-load calib: ");
@@ -1689,6 +1728,13 @@ void setup()
     Serial.print(s.accel); Serial.print("/");
     Serial.println(s.mag);
   }
+
+  // bno.set_mode(operation_mode::IMU);
+  // delay(10);
+  // uint8_t buf[20];
+  // bno.read_register(imu_registers::mode::OPR_MODE,buf,1);
+  // Serial.print("mode: ");Serial.println(buf[0],HEX);
+
   delay(2000);
   bnoMutex = xSemaphoreCreateMutex();
   xTaskCreate(bnoOffsetTask, "bnoOffsetTask", 2048, NULL, 1, &bnoOffsetTaskHandle);
@@ -1707,44 +1753,66 @@ void setup()
 
 void loop()
 {           
-  getPosition(); 
   ekfUpdate();
-
+  checkDiagonalEdges();
+  // delay(100);
+  if(edgeRight())
+  {
+    Serial.println("Right edge detected!");
+    // analogWrite(leftMotorForward, 100);
+    // analogWrite(leftMotorBackward, 100);
+    // analogWrite(rightMotorForward, 100);
+    // analogWrite(rightMotorBackward, 100);
+    // delay(1000);
+    analogWrite(leftMotorForward, 70);
+    analogWrite(leftMotorBackward, -70);
+    analogWrite(rightMotorForward, 70);
+    analogWrite(rightMotorBackward, -70);
+    delay(500);
+    turn(90);
+    moveF(1);
+    delay(1000);
+  }
+  if(edgeLeft())
+  {
+    Serial.println("Left edge detected!");
+    analogWrite(leftMotorForward, 100);
+    analogWrite(leftMotorBackward, 100);
+    analogWrite(rightMotorForward, 100);
+    analogWrite(rightMotorBackward, 100);
+    delay(1000);
+  }
+  
+  else
+  {
+    analogWrite(leftMotorForward, 70);
+    analogWrite(leftMotorBackward, -70);
+    analogWrite(rightMotorForward, 70);
+    analogWrite(rightMotorBackward, -70);
+  }
   // for(int i=0;i<4;i++)
   // {
   //   Serial.print(irToDist(readings[i],i));Serial.print("  ");
   // }
   // Serial.println();
-  Serial.print(" wL="); Serial.print(wallLeft());
-Serial.print(" wR="); Serial.print(wallRight());
-Serial.print(" wF="); Serial.print(wallFront());
-Serial.print(" r0="); Serial.print(readings[0]);
-Serial.print(" r1="); Serial.print(readings[1]);
-Serial.print(" r2="); Serial.print(readings[2]);
-Serial.print(" r3="); Serial.print(readings[3]);
-Serial.print(" dF="); Serial.print(irToDist(readings[0], 0));
-  Serial.print("  x=");Serial.print(xPosition);
-  Serial.print("  y=");Serial.print(yPosition);
-  Serial.print("  yaw=");Serial.print(yaw);
-  Serial.print("    x=");Serial.print(poseEkf.X(0,0));
-  Serial.print("  y=");Serial.print(poseEkf.X(1,0));
-  Serial.print("  theta=");Serial.print(poseEkf.X(2,0));
-  Serial.print("  P(0,2)=");Serial.print(poseEkf.P(0,2));
-  Serial.print("  P(1,2)=");Serial.println(poseEkf.P(1,2));
-   
+  // Serial.print("  x=");Serial.print(xPosition);
+  // Serial.print("  y=");Serial.print(yPosition);
+  // Serial.print("  yaw=");Serial.print(yaw);
+  // Serial.print("    x=");Serial.print(poseEkf.X(0,0));
+  // Serial.print("  y=");Serial.print(poseEkf.X(1,0));
+  // Serial.print("  theta=");Serial.println(poseEkf.X(2,0));
 
   
-
-  // Serial.print("row:");
-  // Serial.print(curr_r,HEX);Serial.print("   col:");Serial.println(curr_c,HEX);
+  //   Serial.print("  P(0,2)=");Serial.print(poseEkf.P(0,2));
+  //   Serial.print("  P(1,2)=");Serial.println(poseEkf.P(1,2));
+   
+  //moveF(1);
   // delay(1000);
-  // moveTo(curr_r-1,curr_c);
-  // delay(3000);
-  // delay(5000);
   // turn(90);
   // delay(1000);
   // turn(-90);
   // delay(1000);
+  // turn(90);
   // moveF(1);
   // turn(90);
   // moveF(1);
@@ -1753,19 +1821,18 @@ Serial.print(" dF="); Serial.print(irToDist(readings[0], 0));
   // turn(90);
   // moveF(1);
 
-  // delay(2000);
-  // dt = (millis() - lastEkfTime) / 1000.0f;
-  // if(dt < 0.001f)return;
-  // lastEkfTime = millis();
+  // // delay(1000);
 
-  // ekfPredict(dt);              
   // getPosition(); 
+  // ekfUpdate();
+
   // Serial.print("x=");Serial.print(xPosition);
   // Serial.print("  y=");Serial.print(yPosition);
   // Serial.print("  yaw=");Serial.print(yaw);
   // Serial.print("    x=");Serial.print(poseEkf.X(0,0));
   // Serial.print("  y=");Serial.print(poseEkf.X(1,0));
   // Serial.print("  theta=");Serial.println(poseEkf.X(2,0));
+  // // delay(1000);
 
   // turn(-90);
   // moveF(1);
