@@ -7,18 +7,147 @@
 #include "esp_system.h"
 #include "ekf.h"
 #undef F
-// #include <WiFi.h>
-// #include <WebServer.h>
-
-// String dataTosend ;
+#include <WiFi.h>
 
 // // Replace with your network credentials
-// const char* ssid = "Borham2";
-// const char* password = "18046768";
+const char* ssid = "Farghaly";
+const char* password = "42429400";
+const uint16_t LOG_PORT = 23; //view logs using: nc <ip> 23 //ip is printed on serial monitor in setup
+volatile bool wifiEnable = false;
+volatile bool wifiUp = false;
+volatile unsigned long lastWifiInterruptTime = 0;
 
-// // Create a web server on port 80
-// WebServer server(80);
+WiFiServer server(LOG_PORT);
+WiFiClient client;
+struct LogMessage {
+  char text[64]; //max char per log line
+};
+QueueHandle_t logQueue;
 
+void IRAM_ATTR onButtonPress() {
+  unsigned long now = millis();
+  if (now - lastWifiInterruptTime > 500) {
+    wifiEnable = !wifiEnable;
+    lastWifiInterruptTime = now;
+  }
+}
+
+static inline void queueLog(const char* text) {
+  if (!wifiEnable || logQueue == NULL) return;
+  LogMessage msg;
+  strncpy(msg.text, text, 64 - 1);
+  msg.text[64 - 1] = '\0';
+
+  if (xQueueSend(logQueue, &msg, 0) != pdTRUE) {
+    //if queue is full dequeue and enqueue the newest message
+    LogMessage discard;
+    xQueueReceive(logQueue, &discard, 0);
+    xQueueSend(logQueue, &msg, 0);          
+  }
+}
+/*TODO: redo all these functions using templates(not sure how yet) (2functions only log() and logln()) 
+bas for now these will do*/
+void Log(const char* value) { 
+  Serial.print(value);
+  if(wifiUp) queueLog(value); 
+}
+void Log(const String& value) { 
+  Serial.print(value);
+  if(wifiUp) queueLog(value.c_str()); 
+}
+void Log(int value) {
+  Serial.print(value);
+  if(wifiUp) {char buf[16]; snprintf(buf, sizeof(buf), "%d", value); queueLog(buf);}
+}
+void Log(float value) {
+  Serial.print(value);
+  if(wifiUp) {char buf[24]; dtostrf(value, 0, 3, buf); queueLog(buf);}
+}
+void Logln(const char* value) {
+  Serial.println(value);
+  if(wifiUp) {char buf[64]; snprintf(buf, sizeof(buf), "%s\n", value); queueLog(buf);}
+}
+void Logln(const String& value){
+  Serial.println(value);
+  if(wifiUp){char buf[64]; snprintf(buf, sizeof(buf), "%s\n", value); queueLog(buf);}
+}
+void Logln(int value) {
+  Serial.println(value);
+  if(wifiUp) {char buf[16]; snprintf(buf, sizeof(buf), "%d\n", value); queueLog(buf);}
+}
+void Logln(float value) {
+  Serial.println(value);
+  if(wifiUp) {char buf[24]; dtostrf(value, 0, 3, buf); strncat(buf, "\n", sizeof(buf) - strlen(buf) - 1);
+  queueLog(buf);}
+}
+void Logln() { Serial.println(); if(wifiUp) {queueLog("\n");} }
+
+static void bringWifiUp() {
+  Serial.println("Enabling WiFi...");
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  unsigned long start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 1500) {
+    // vTaskDelay(pdMS_TO_TICKS(100));
+    delay(100);
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    server.begin();
+    wifiUp= true;
+    Serial.print("WiFi enabled. IP address: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("oops Wifi enable failed. Turning radio back off.");
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+    wifiUp = false;
+    wifiEnable = false;
+  }
+}
+static void bringWifiDown() {
+  Serial.println("Disabling WiFi...");
+  if (client) client.stop();
+  wifiUp = false;
+  server.end();
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  Serial.println("WiFi disabled.");
+}
+void logTask(void* param) {
+  LogMessage msg;
+  bool wifiUpLastSeen = false;
+
+  while(1){
+    if (wifiEnable != wifiUpLastSeen) {
+      if (wifiEnable) {
+        bringWifiUp();
+      } else {
+        bringWifiDown();
+      }
+      wifiUpLastSeen = wifiUp; // reflect whatever bringWifiUp/Down actually achieved
+    }
+    if (!wifiUp) {
+      // Radio is off - nothing to serve, just wait and re-check the flag.
+      vTaskDelay(pdMS_TO_TICKS(100));
+      continue;
+    }
+    if (!client || !client.connected()) {
+      WiFiClient newClient = server.available();
+      if (newClient) {
+        client = newClient;
+        Serial.println("Log client connected.");
+      }
+    }
+    if (xQueueReceive(logQueue, &msg, pdMS_TO_TICKS(100)) == pdTRUE) {
+      if (client && client.connected()) {
+        client.print(msg.text);
+      }
+    }
+  }
+}
+
+/*not sure how buttons will work yet so for now hastakhdem changePin to toggle wifi*/
 int modeByte = 2;      //byte where the mode will be stored
 int changePin = 11;    //button that will trigger menu
 int selectorPin = 12;  //button that will be used to select mode floodfill,right,left
@@ -26,7 +155,7 @@ volatile bool menu = false;
 volatile char option;
 unsigned long interTimer;
 
-inline void getPosition();  // odom
+// inline void getPosition();  // odom
 inline float getOrientationX();
 inline float getRate();
 bool calibrateBnoAndSave(imu& bno);
@@ -58,10 +187,6 @@ struct queue {
   short head, tail, size, counter;
   char items[MAX_H * MAX_W];
 };
-// void log(const String& text) {
-//   ////Serial.println(text);
-// }
-
 
 char curr_dir = 0;  // 0--> North, 1 --> East, 2 --> South, 3 --> West
 char curr_r = 16, curr_c = 1;
@@ -123,7 +248,7 @@ double yaw = 0;
 double yawOffset = 0;
 inline float getRawYaw();
 //###################################BNO######################################
-#define EEPROM_SIZE        32          
+#define EEPROM_SIZE        32  //need more for saving the map          
 #define CALIB_FLAG_ADDR    4           //after modebyte
 #define CALIB_DATA_ADDR    5           // actual calibProfile struct starts here 22 bytes
 #define CALIB_MAGIC        0x42        // if found then data is valid
@@ -546,40 +671,6 @@ void exploreToStart() {
   return;
 }
 
-
-
-
-
-
-
-
-
-// void setup() {
-//   //Serial.begin(19200);
-//   initialise(c_q,MAX_H * MAX_W); //queue initialisation for storing row and coloumn
-//   initialise(r_q,MAX_H* MAX_W);
-//   update_mms_maze();
-//   log("Khalast setup");
-// //   ////Serial.println("Khalast setup");
-
-
-// }
-
-// void loop() {
-//     log("Dakhalt el loop");
-//     while(1) {
-//     flood();
-//     previous_run = current_run;
-//     exploreToCenter ();
-//     current_run = dis[16][1];
-//     if(current_run != 0 && current_run == previous_run) break;
-//     flood(0);
-//     exploreToStart ();
-//     log("done!!!! The best run is "+ current_run);
-//     }
-// }
-
-
 int theoreticalHeading = 0;
 
 float calDistances[6] = { 4, 6, 8, 10, 12, 15 };   // cm values ana mekhtaraha 
@@ -594,8 +685,6 @@ hayeb2a kefaya bas nakhod el threshold feeh wall wala la2*/
 /*this part 3ashan ne2dar ne7seb el distance 3ashan ne2dar ne3del el heading using el walls
 and also 3ashan ne fuse the data bardo fy el kalman filter ma3 el encoders and gyro*/
 
-
-//TODO: calibrate 2 front sensors together 3ashan homa nafs el placement
 void IRCalibration(int sensor) {
   Serial.print("IR calibration("); Serial.print(sensor); Serial.println("): position robot");
   for (int i = 0; i < 6; i++) {
@@ -606,12 +695,30 @@ void IRCalibration(int sensor) {
     while (!Serial.available());
     while (Serial.available()) Serial.read();  // clear buffer
 
-    long sum = 0;
-    for (int s = 0; s < 20; s++) { sum += readings[sensor]; delay(20); }
-    calReadings[sensor][i] = sum / 20;
+    long sum0 = 0,sum1 = 0;
+    for (int s = 0; s < 20; s++) { 
+      if(sensor == 1)
+        sum0 += readings[sensor-1];  
+      sum1 += readings[sensor];delay(20);
+    }
+    delay(20); 
+    if(sensor == 1)
+      calReadings[sensor-1][i] = sum0 / 20;
+    calReadings[sensor][i] = sum1 / 20;
   }
+  
+  if(sensor == 1){
+    Serial.print(" calReadings["); Serial.print(sensor-1); Serial.print("] = ");
+    for(int i=0;i<6;i++){
+      Serial.print(calReadings[sensor-1][i]); Serial.print(", ");
+    }
+    Serial.println();
+  }
+
   Serial.print(" calReadings["); Serial.print(sensor); Serial.print("] = ");
-  for(int i=0;i<6;i++){Serial.print(calReadings[sensor][i]); Serial.print(", ");}
+  for(int i=0;i<6;i++){
+      Serial.print(calReadings[sensor][i]); Serial.print(", ");
+    }
   Serial.println();
   Serial.print(sensor);
   Serial.println(" calibration done. Copy calReadings[] values into your code");
@@ -1041,7 +1148,7 @@ void turn(double angle) {
 
     }
   }
-  Serial.println("done turning");
+  Logln("done turning");
   ekfUpdate();
   
   analogWrite(leftMotorForward, 0);
@@ -1174,7 +1281,7 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
     //Serial.println(getLin());
   }
 
-  Serial.print("Done ");
+  Logln("Done moveF");
   //   //Serial.println(calculateDistance(startX,startY));
   //Serial.println(errorL);
 
@@ -1366,13 +1473,8 @@ void bnoOffsetTask(void *pv)
 //   server.send(200, "text/html", generateHTML());
 // }
 
-
+/*first press enters the menu then other presses move between modes*/
 void toggleMenu() {
-  menu = true;
-  //Serial.println("Menu");
-}
-
-void modeChooser() {
   if (menu && millis() - interTimer > 250) {
     //Serial.print("changing mode");
     option = '0' + (option - '0' + 1) % 3;
@@ -1380,9 +1482,15 @@ void modeChooser() {
     EEPROM.commit();
     interTimer = millis();
   } 
+  menu = true;
+  //Serial.println("Menu");
+}
+/*TODO: bno calibration and wifi? */
+void modeChooser() {
+  
 }
 
-/*
+
 void setup() {
 
   EEPROM.begin(EEPROM_SIZE);  // Allocate 512 bytes for EEPROM emulation
@@ -1394,35 +1502,10 @@ void setup() {
   option = EEPROM.read(modeByte);
   if (option < '0' || option > '2') option = '1';
 
-
-  //   delay(1000);
-
-  //   WiFi.begin(ssid, password);
-  //   //Serial.print("Connecting to WiFi");
-  //   while (WiFi.status() != WL_CONNECTED) {
-  //     delay(500);
-  //     //Serial.print(".");
-  //   }
-
-  //   //Serial.println("\nWiFi connected.");
-  //   //Serial.print("IP address: ");
-  //   //Serial.println(WiFi.localIP());
-
-  //   server.on("/", handleRoot);
-  //   server.begin();
-  //   //Serial.println("HTTP server started");
-
   pinMode(leftMotorForward, OUTPUT);
   pinMode(leftMotorBackward, OUTPUT);
   pinMode(rightMotorForward, OUTPUT);
   pinMode(rightMotorBackward, OUTPUT);
-
-  // analogWriteResolution(leftMotorForward, 10);
-  // analogWriteResolution(leftMotorBackward, 10);
-  // analogWriteResolution(rightMotorForward, 10);
-  // analogWriteResolution(rightMotorBackward, 10);
-
-
 
   analogWrite(leftMotorForward, 0);
   analogWrite(leftMotorBackward, 0);
@@ -1431,49 +1514,93 @@ void setup() {
 
   //delay(5000);
 
-  // Serial.begin(115200);
+  Serial.begin(115200);
   initialise(c_q, MAX_H * MAX_W);  //queue initialisation for storing row and coloumn
   initialise(r_q, MAX_H * MAX_W);
   update_mms_maze();
-  // log("Khalast setup");
-  bno.set_mode(operation_mode::IMU);//bno already started up before setup //wire.begin() is in bno constructor
-  delay(20);
-  
-  if (!bno.isConnected())  // lol
-  {
-    ////Serial.println("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
-    while (1)
-      ;
-  }Serial.print(row:);
-  Serial.print(curr_r);Serial.print("   col:");Serial.println(curr_c);
 
-  //check button to calibrate bno
-  if(!loadBnoCalibration(bno))
+  delay(1000);
+  Serial.println(esp_reset_reason());
+
+  //WIFI
+  pinMode(changePin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(changePin), onButtonPress, RISING);
+  WiFi.mode(WIFI_OFF);
+  logQueue = xQueueCreate(32,sizeof(LogMessage));
+  xTaskCreate(logTask,"logTask",4096,NULL,1,NULL);
+  vTaskPrioritySet(NULL,3);
+
+  //BNO
+  bno.init();
+  delay(50);
+  if(bno.isConnected())
+    Serial.println("BNO Connected yayy");
+  else
   {
-    Serial.println("No BNO calibration data!");
+    Serial.println("lol no BNO detected!");
+    delay(50000);
   }
+  delay(10);
+  Calibration_t s{};
+  bno.calibration_status(s);
+  Serial.print("pre-load calib: ");
+  Serial.print(s.sys); Serial.print("/");
+  Serial.print(s.gyro); Serial.print("/");
+  Serial.print(s.accel); Serial.print("/");
+  Serial.println(s.mag);
   
+  if(loadBnoCalibration(bno) == 0)
+  {
+    Serial.println("oops No bno offsets to load :(");
+    calibrateBnoAndSave(bno);//TODO: calibration using button mayenfa3sh nedkhol el mosab2a keda what if fy el round karar ye3ml calibration
+  }
+  else
+  {
+    Serial.println("Calibration offsets loaded :)");
+    bno.calibration_status(s);
+    Serial.print("post-load calib: ");
+    Serial.print(s.sys); Serial.print("/");
+    Serial.print(s.gyro); Serial.print("/");
+    Serial.print(s.accel); Serial.print("/");
+    Serial.println(s.mag);
+  }
 
+  // bno.set_mode(operation_mode::IMU);
+  // delay(10);
+  // uint8_t buf[20];
+  // bno.read_register(imu_registers::mode::OPR_MODE,buf,1);
+  // Serial.print("mode: ");Serial.println(buf[0],HEX);
+
+  delay(2000);
+  bnoMutex = xSemaphoreCreateMutex();
+  xTaskCreate(bnoOffsetTask, "bnoOffsetTask", 2048, NULL, 1, &bnoOffsetTaskHandle);
+  
   ////Serial.println("done withe the bno");
-
-  leftEncoder.setPosition(0);
-  rightEncoder.setPosition(0);
-  getPosition();
-
+  
   for (const auto &[trig_pin, echo_pin] : ir_array) {
     pinMode(trig_pin, OUTPUT);
     digitalWrite(trig_pin, LOW);
     pinMode(echo_pin, INPUT);
   }
-  delay(2000);
+  setupIR();
 
-  interTimer = millis();
   ////Serial.println("Done with the irs");
+  
+  interTimer = millis();
 
-  getPosition();
-  //yawOffset = yaw;
+  poseEkf.Init();
 
-  //Serial.println("Done with the setup");
+  leftEncoder.setPosition(0);
+  rightEncoder.setPosition(0);
+
+  theoreticalHeading = getOrientationX();
+  poseEkf.X(2,0) = getOrientationX(); 
+  ekfUpdate();
+
+  // for(int i=1;i<4;i++)//starting from 1 cuz 0,1 calibrate ma3 ba3d
+  //   IRCalibration(i);
+
+  Serial.println("khalast setup");
 }
 
 
@@ -1499,8 +1626,6 @@ void loop() {
   // //Serial.println(rightEncoder.position());
   ////Serial.println(getRate());
 
-
-  //   READIRS();
   // if(readings[3] < 100)
   // {
   //     turn(90);
@@ -1530,7 +1655,7 @@ void loop() {
   // //Serial.print(" ");
   // Serial.println(yaw);
   // delay(100);
-  // READIRS();
+  
 
   // moveF(1);
   // delay(500);
@@ -1612,7 +1737,8 @@ void loop() {
       analogWrite(rightMotorBackward, 0);
       //Serial.println("WTF HAPPENED?? MENU " + String(option));
     }
-  } else {
+  } 
+  else {
     if (option == '0') {
       //Serial.println("0 no menu");
       delay(2000);
@@ -1632,16 +1758,14 @@ void loop() {
         exploreToStart();
         Serial.println("done exploretostart");
         //log("done!!!! The best run is "+ current_run);
-        //add a vTaskDelay(1)? to not block other tasks
       }
     } else if (option == '1') {
-      getPosition();
+      ekfUpdate();
       analogWrite(leftMotorForward, 0);
       analogWrite(leftMotorBackward, 0);
       analogWrite(rightMotorForward, 0);
       analogWrite(rightMotorBackward, 0);
       delay(1000);
-      READIRS();
       if(!wallRight()){//if (readings[3] < 100) {
         turn(90);
         // theoreticalHeading = (theoreticalHeading + 90) % 360;
@@ -1657,13 +1781,12 @@ void loop() {
         // theoreticalHeading = (theoreticalHeading + 270) % 360;
       }
     } else if (option == '2') {
-      getPosition();
+      ekfUpdate();
       analogWrite(leftMotorForward, 0);
       analogWrite(leftMotorBackward, 0);
       analogWrite(rightMotorForward, 0);
       analogWrite(rightMotorBackward, 0);
       delay(1000);
-      READIRS();
       if(!wallLeft()){//if (readings[2] < 100) {
         turn(-90);
         // theoreticalHeading = (theoreticalHeading + 90) % 360;
@@ -1686,16 +1809,27 @@ void loop() {
       //Serial.println("WTF HAPPENED?? NO MENU " + String(option));
     }
   }
-  //READIRS();
-}*/
+  
+}
 
 
+/*
 void setup()
 {
   EEPROM.begin(EEPROM_SIZE);
   Serial.begin(115200);
   delay(1000);
   Serial.println(esp_reset_reason());
+
+  //WIFI
+  pinMode(changePin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(changePin), onButtonPress, RISING);
+  WiFi.mode(WIFI_OFF);
+  logQueue = xQueueCreate(32,sizeof(LogMessage));
+  xTaskCreate(logTask,"logTask",4096,NULL,1,NULL);
+  vTaskPrioritySet(NULL,3);
+
+  //BNO
   bno.init();
   delay(50);
   if(bno.isConnected())
@@ -1752,44 +1886,47 @@ void setup()
 }
 
 void loop()
-{           
+{        
+  Logln("hi");   
+  delay(200);
   ekfUpdate();
-  checkDiagonalEdges();
-  // delay(100);
-  if(edgeRight())
-  {
-    Serial.println("Right edge detected!");
-    // analogWrite(leftMotorForward, 100);
-    // analogWrite(leftMotorBackward, 100);
-    // analogWrite(rightMotorForward, 100);
-    // analogWrite(rightMotorBackward, 100);
-    // delay(1000);
-    analogWrite(leftMotorForward, 70);
-    analogWrite(leftMotorBackward, -70);
-    analogWrite(rightMotorForward, 70);
-    analogWrite(rightMotorBackward, -70);
-    delay(500);
-    turn(90);
-    moveF(1);
-    delay(1000);
-  }
-  if(edgeLeft())
-  {
-    Serial.println("Left edge detected!");
-    analogWrite(leftMotorForward, 100);
-    analogWrite(leftMotorBackward, 100);
-    analogWrite(rightMotorForward, 100);
-    analogWrite(rightMotorBackward, 100);
-    delay(1000);
-  }
+  moveF(1);
+  // checkDiagonalEdges();
+  // // delay(100);
+  // if(edgeRight())
+  // {
+  //   Serial.println("Right edge detected!");
+  //   // analogWrite(leftMotorForward, 100);
+  //   // analogWrite(leftMotorBackward, 100);
+  //   // analogWrite(rightMotorForward, 100);
+  //   // analogWrite(rightMotorBackward, 100);
+  //   // delay(1000);
+  //   analogWrite(leftMotorForward, 70);
+  //   analogWrite(leftMotorBackward, -70);
+  //   analogWrite(rightMotorForward, 70);
+  //   analogWrite(rightMotorBackward, -70);
+  //   delay(500);
+  //   turn(90);
+  //   moveF(1);
+  //   delay(1000);
+  // }
+  // if(edgeLeft())
+  // {
+  //   Serial.println("Left edge detected!");
+  //   analogWrite(leftMotorForward, 100);
+  //   analogWrite(leftMotorBackward, 100);
+  //   analogWrite(rightMotorForward, 100);
+  //   analogWrite(rightMotorBackward, 100);
+  //   delay(1000);
+  // }
   
-  else
-  {
-    analogWrite(leftMotorForward, 70);
-    analogWrite(leftMotorBackward, -70);
-    analogWrite(rightMotorForward, 70);
-    analogWrite(rightMotorBackward, -70);
-  }
+  // else
+  // {
+  //   analogWrite(leftMotorForward, 70);
+  //   analogWrite(leftMotorBackward, -70);
+  //   analogWrite(rightMotorForward, 70);
+  //   analogWrite(rightMotorBackward, -70);
+  // }
   // for(int i=0;i<4;i++)
   // {
   //   Serial.print(irToDist(readings[i],i));Serial.print("  ");
@@ -1820,10 +1957,8 @@ void loop()
   // moveF(1);
   // turn(90);
   // moveF(1);
-
-  // // delay(1000);
-
-  // getPosition(); 
+  // Logln("first square!");
+  // delay(500);
   // ekfUpdate();
 
   // Serial.print("x=");Serial.print(xPosition);
@@ -1842,7 +1977,8 @@ void loop()
   // moveF(1);
   // turn(-90);
   // moveF(1);
-  // delay(2000);
+  // Logln("second square!");
+  // delay(500);
   // for(auto i : readings)
   // {
   //   Serial.print(i);Serial.print("  ");
@@ -1862,3 +1998,4 @@ void loop()
   // if(wallRight()) {Serial.println("WALL RIGHT");delay(2000);}
 
 }
+*/
