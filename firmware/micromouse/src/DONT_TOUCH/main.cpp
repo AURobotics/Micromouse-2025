@@ -175,8 +175,8 @@ inline double calculateDistance(double x, double y);
 inline double ekfCalculateDistance(double x, double y);
 
 
-#define MAX_H 18
-#define MAX_W 18
+#define MAX_H 6 //18
+#define MAX_W 6 //18
 #define QUEUE_MAX (MAX_H * MAX_W)
 
 // struct queue;
@@ -189,7 +189,7 @@ struct queue {
 };
 
 char curr_dir = 0;  // 0--> North, 1 --> East, 2 --> South, 3 --> West
-char curr_r = 16, curr_c = 1;
+char curr_r = 6, curr_c = 1;
 
 int current_run;
 int previous_run;
@@ -197,27 +197,35 @@ int previous_run;
 bool maze[MAX_H][MAX_W][5] = { 0 };  // represents the maze, first 4 bits represent the walls N E S W, the last bit represents the visiting status
 //leh mn3melsh byte/char maze[MAX_H][MAX_W] ?
 
-short dis[MAX_H][MAX_W] = {
-  { 16, 15, 14, 13, 12, 11, 10, 9, 8, 8, 9, 10, 11, 12, 13, 14, 15, 16 },
-  { 15, 14, 13, 12, 11, 10, 9, 8, 7, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
-  { 14, 13, 12, 11, 10, 9, 8, 7, 6, 6, 7, 8, 9, 10, 11, 12, 13, 14 },
-  { 13, 12, 11, 10, 9, 8, 7, 6, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13 },
-  { 12, 11, 10, 9, 8, 7, 6, 5, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12 },
-  { 11, 10, 9, 8, 7, 6, 5, 4, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11 },
-  { 10, 9, 8, 7, 6, 5, 4, 3, 2, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
-  { 9, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
-  { 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8 },
-  { 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8 },
-  { 9, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
-  { 10, 9, 8, 7, 6, 5, 4, 3, 2, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
-  { 11, 10, 9, 8, 7, 6, 5, 4, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11 },
-  { 12, 11, 10, 9, 8, 7, 6, 5, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12 },
-  { 13, 12, 11, 10, 9, 8, 7, 6, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13 },
-  { 14, 13, 12, 11, 10, 9, 8, 7, 6, 6, 7, 8, 9, 10, 11, 12, 13, 14 },
-  { 15, 14, 13, 12, 11, 10, 9, 8, 7, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
-  { 16, 15, 14, 13, 12, 11, 10, 9, 8, 8, 9, 10, 11, 12, 13, 14, 15, 16 }
-};
+// short dis[MAX_H][MAX_W] = {
+//   { 16, 15, 14, 13, 12, 11, 10, 9, 8, 8, 9, 10, 11, 12, 13, 14, 15, 16 },
+//   { 15, 14, 13, 12, 11, 10, 9, 8, 7, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
+//   { 14, 13, 12, 11, 10, 9, 8, 7, 6, 6, 7, 8, 9, 10, 11, 12, 13, 14 },
+//   { 13, 12, 11, 10, 9, 8, 7, 6, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13 },
+//   { 12, 11, 10, 9, 8, 7, 6, 5, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12 },
+//   { 11, 10, 9, 8, 7, 6, 5, 4, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11 },
+//   { 10, 9, 8, 7, 6, 5, 4, 3, 2, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
+//   { 9, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
+//   { 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8 },
+//   { 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8 },
+//   { 9, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
+//   { 10, 9, 8, 7, 6, 5, 4, 3, 2, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
+//   { 11, 10, 9, 8, 7, 6, 5, 4, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11 },
+//   { 12, 11, 10, 9, 8, 7, 6, 5, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12 },
+//   { 13, 12, 11, 10, 9, 8, 7, 6, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13 },
+//   { 14, 13, 12, 11, 10, 9, 8, 7, 6, 6, 7, 8, 9, 10, 11, 12, 13, 14 },
+//   { 15, 14, 13, 12, 11, 10, 9, 8, 7, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
+//   { 16, 15, 14, 13, 12, 11, 10, 9, 8, 8, 9, 10, 11, 12, 13, 14, 15, 16 }
+// };
 
+short dis[MAX_H][MAX_W]= {
+  {4,3,2,2,3,4},
+  {3,2,1,1,2,3},
+  {2,1,0,0,1,2},
+  {2,1,0,0,1,2},
+  {3,2,1,1,2,3},
+  {4,3,2,2,3,4}
+};
 queue r_q;
 queue c_q;
 
@@ -316,8 +324,6 @@ int prevRightDiag = 0;
 adc_continuous_handle_t adcHandle = NULL;
 TaskHandle_t irTaskHandle = NULL;
 SemaphoreHandle_t readingsMutex = NULL;
-
-
 
 String tostr(short x) {
   //log("tostr");
@@ -907,6 +913,33 @@ inline void e3delHeadingUsingWall(){
   }
   
 }
+class IIRFilter {
+public:
+    IIRFilter(float alpha = 0.3f) : alpha(alpha), y_prev(0), initialized(false) {}
+
+    float update(float x) {
+        if (!initialized) {
+            y_prev = x;          // avoid startup transient
+            initialized = true;
+            return y_prev;
+        }
+        y_prev = alpha * x + (1.0f - alpha) * y_prev;
+        return y_prev;
+    }
+
+    void reset(float val = 0.0f) {
+        y_prev = val;
+        initialized = false;
+    }
+
+    void setAlpha(float a) { alpha = a; }
+
+private:
+    float alpha;
+    float y_prev;
+    bool initialized;
+};
+
 class PoseEKF : public ekf {
 public:
   PoseEKF() : ekf(3, 1) {} //3 states (x,y,theta)// 1 control v
@@ -918,8 +951,8 @@ public:
     X(0,0) = 0; X(1,0) = 0; X(2,0) = 0;     
 
     Q(0,0) = 0.02f; Q(0,1) = 0.0f;          
-    Q(1,0) = 0.0f;  Q(1,1) = 30.0f; //------------------------------------------------------------------------need to tune
-    Q(2,2) = 1.0f; //-----------------------------------------------------------------------------------------need to tune
+    Q(1,0) = 0.0f;  Q(1,1) = 0.02f; //------------------------------------------------------------------------need to tune
+    Q(2,2) = 0.0f; 
   }
 
   dspm::Mat StateXdot(dspm::Mat &x, float *u) override {
@@ -946,10 +979,13 @@ public:
 };
 
 PoseEKF poseEkf;
+TaskHandle_t ekfTaskHandle = NULL;
+SemaphoreHandle_t poseMutex;
 
 long ekfPrevRightTicks = 0;
 long ekfPrevLeftTicks = 0;
-const float headingProcessNoise = 4.0f; //--------------------------------------------------------need to tune this
+IIRFilter rightVFilter(0.3f);//-------------------------------------------------------------------------------------need to tune
+IIRFilter leftVFilter(0.3f);
 
 void ekfPredict(float dt) {
   long rightPos = rightEncoder.position();
@@ -964,41 +1000,23 @@ void ekfPredict(float dt) {
   float rightDist = rTicks / (float)ticksperlafa * circumference;
   float leftDist  = lTicks / (float)ticksperlafa * circumference;
 
-  float v = ((rightDist + leftDist) / 2.0f) / dt;
+  float rightSpeed_raw = rightDist / dt;
+  float leftSpeed_raw  = leftDist / dt;
+  float rightSpeed = rightVFilter.update(rightSpeed_raw);
+  float leftSpeed  = leftVFilter.update(leftSpeed_raw);
+
+  float v = (rightSpeed + leftSpeed) / 2.0f;
   // float omega = getRate();// degrees
+  poseEkf.X(2,0) = getOrientationX();   
+  poseEkf.P(2,2) = 0.0f;
+  poseEkf.P(0,2) = poseEkf.P(2,0) = 0.0f;
+  poseEkf.P(1,2) = poseEkf.P(2,1) = 0.0f;
 
   float u[1] = { v };
   poseEkf.Process(u, dt);
-  poseEkf.P(2,2) += headingProcessNoise * dt;
-  // poseEkf.X(2,0) = angleDiff(0, poseEkf.X(2,0));
-  // poseEkf.X(2,0) = yaw;
 }
 
-void ekfCorrectHeading() {
-  float z = getOrientationX() ; 
-  float expected = poseEkf.X(2, 0);//unwrapped
-
-  //wrapped to [0, 360] 
-  float diff = angleDiff(expected,z);
-  if (diff > 180)  diff -= 360.0f;
-  if (diff < -180) diff += 360.0f;
-
-  float adjustedMeasured = expected + diff;    // same physical heading as z,
-                                                // but expressed in expected's turn-count frame
-
-  dspm::Mat H(1, 3);
-  H(0,0) = 0; H(0,1) = 0; H(0,2) = 1;
-
-  float measuredArr[1] = { adjustedMeasured };
-  float expectedArr[1] = { expected };
-  float R[1] = { 0.5f };// i somewhat trust imu heading so small value----------------------------------------------------------------need to tune
-
-  poseEkf.Update(H, measuredArr, expectedArr, R);
-  poseEkf.X(2,0) -= (poseEkf.X(2,0)>360)? 360:0;
-  poseEkf.X(2,0) += (poseEkf.X(2,0)<0)? 360:0;
-  // poseEkf.X(2,0) = angleDiff(0, poseEkf.X(2,0));  
-}
-
+/*
 int leftSign[4]    = { -1, +1, +1, -1 };  // side-sensor sign, indexed by curr_dir
 float forwardSign[4] = { +1, +1, -1, -1 };
 bool  forwardIsY[4]  = { true, false, true, false };
@@ -1075,46 +1093,80 @@ void ekfCorrectWalls() {
     }
   }
 }
+  */
 
-void ekfUpdate() {
-  static unsigned long lastEkfTime = millis();
-  float dt = (millis() - lastEkfTime) / 1000.0f;
-  if (dt < 0.001f) return;
-  lastEkfTime = millis();
+void ekfTask(void *pvParameters) {
+  TickType_t lastWakeTime = xTaskGetTickCount();
+  const TickType_t period = pdMS_TO_TICKS(50);
 
-  ekfPredict(dt);
-  ekfCorrectHeading();
-  ekfCorrectWalls();
+  
+  for (;;) {
+    float dt = 20 / 1000.0f;
+
+    if (xSemaphoreTake(poseMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+      ekfPredict(dt);
+      xSemaphoreGive(poseMutex);
+    }
+    
+    vTaskDelayUntil(&lastWakeTime, period);
+  }
 }
 
 //1 4
 void turn(double angle) {
-  ekfUpdate();
-  double desiredAngle = poseEkf.X(2,0) + angle;
-  desiredAngle = fmod(desiredAngle + 360.0, 360.0); 
-  double error = angleDiff(poseEkf.X(2,0), desiredAngle);
+  xSemaphoreTake(poseMutex, pdMS_TO_TICKS(5));
+  double currentAngle = poseEkf.X(2,0);
+  xSemaphoreGive(poseMutex);
+
+  double desiredAngle = currentAngle + angle;
+  // desiredAngle = fmod(desiredAngle + 360.0, 360.0); 
+  double error = angleDiff(currentAngle, desiredAngle);
   bool direction = (error > 0 ? true : false);  // true -> turn right | false -> turn left
   double errorPrev = error;
   double totalerror = 0;
   unsigned long lastPrint = millis();
-  double minSpeed = 50;//--------------------------------------------------------------------------need to tune this
+  unsigned long lastLoopTime = millis(); 
+  double minSpeed = 15;//--------------------------------------------------------------------------need to tune this
 
-  double kp = 1.5;  // Kp and Kd will be set with testing
+  double kp = 1.2;  // Kp and Kd will be set with testing
+  double ki = 0.05;
   double kd = -0.09 ;
 
+  const double integralMax = 30.0;
   double speed = 100;
 
   int counter = 0;
 
   while (abs(error) > 1 || fabs(getRate()) > 0.5) {
-    ekfUpdate();
-    error = angleDiff(poseEkf.X(2,0), desiredAngle);
-
-    speed = kp * error + kd * getRate();
-    speed = fixSpeed(speed);
-    if (fabs(speed) > 1 && fabs(speed) < minSpeed) {
-      speed = (speed > 0 ? minSpeed : -minSpeed);
+    // ekfUpdate();
+    if(xSemaphoreTake(poseMutex, pdMS_TO_TICKS(5)) == true){
+      currentAngle = poseEkf.X(2,0);
+      xSemaphoreGive(poseMutex);
     }
+    
+    error = angleDiff(currentAngle, desiredAngle);
+
+    unsigned long now = millis();
+    double dt = (now - lastLoopTime) / 1000.0;
+    lastLoopTime = now;
+
+    double pTerm = kp * error;
+    double dTerm = kd * error/dt;
+
+    //anti-windUp
+    double iTermTentative = ki * error * dt;
+    bool saturating = (pTerm + iTermTentative + dTerm > 100) || (pTerm + iTermTentative + dTerm < -100);
+    if (!saturating) {
+      totalerror += error * dt;
+    }
+    double iTerm = constrain(ki * totalerror, -integralMax, integralMax);
+    
+    speed = pTerm + iTerm + dTerm;
+    speed = fixSpeed(speed);
+  
+    // if (fabs(speed) > 1 && fabs(speed) < minSpeed) {
+    //   speed = (speed > 0 ? minSpeed : -minSpeed);
+    // }
     
     direction = (speed > 0 ? true : false);
     analogWrite(leftMotorForward, (direction)*abs(speed));
@@ -1125,7 +1177,7 @@ void turn(double angle) {
 
 
     errorPrev = error;
-    totalerror += error;
+    totalerror += error*dt;
     
     if (abs(getRate()) < 0.1) counter++;
     if (counter >= 40) break;
@@ -1149,13 +1201,13 @@ void turn(double angle) {
     }
   }
   Logln("done turning");
-  ekfUpdate();
+  // ekfUpdate();
   
   analogWrite(leftMotorForward, 0);
   analogWrite(leftMotorBackward, 0);
   analogWrite(rightMotorForward, 0);
   analogWrite(rightMotorBackward, 0);
-  theoreticalHeading = poseEkf.X(2,0);
+  theoreticalHeading = currentAngle;
   theoreticalHeading -= (theoreticalHeading>360)? 360:0;
   theoreticalHeading += (theoreticalHeading<0)? 360:0;
 }
@@ -1179,8 +1231,8 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
 
   rightEncoder.setPosition(0);
   leftEncoder.setPosition(0);
-  previousLeft=0;
-  previousRight=0;
+  // previousLeft=0;
+  // previousRight=0;
   ekfPrevRightTicks = 0; 
   ekfPrevLeftTicks = 0;
   // for the distance
@@ -1218,19 +1270,19 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
 
   //unsigned long  timeout_timer = millis();
   char timeout_ctr = 0;
-
+  // e3delHeadingUsingWall();
   while ((abs(errorL) > 0.2) && timeout_ctr < 50)  // this 1 might change
-  {
-    e3delHeadingUsingWall();
-    checkDiagonalEdges();
-    if(edgeRight() or edgeLeft())
-    {
-      analogWrite(leftMotorForward, 0);
-      analogWrite(leftMotorBackward, 0);
-      analogWrite(rightMotorForward, 0);
-      analogWrite(rightMotorBackward, 0);
-      return 0;
-    }
+  {    
+    // checkDiagonalEdges();
+    // if(edgeRight() or edgeLeft())
+    // {
+    //   analogWrite(leftMotorForward, 0);
+    //   analogWrite(leftMotorBackward, 0);
+    //   analogWrite(rightMotorForward, 0);
+    //   analogWrite(rightMotorBackward, 0);
+    //   return 0;
+    // }
+
     rightTicks = rightEncoder.position() - startRight;
     leftTicks = leftEncoder.position() - startLeft;
     long deltaTicks = rightTicks - leftTicks;
@@ -1239,7 +1291,7 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
     //     integralval += kiTicks*(deltaTicks - errorTicksPrev)*(millis() - t) ;
     // speedTicks = KpTicks*deltaTicks + KdTicks * (deltaTicks - errorTicksPrev)/(millis() - t)  + integralval;
 
-    ekfUpdate();
+    // ekfUpdate();
     errorL = desiredDistance - ekfCalculateDistance(startX, startY);
     errorA = angleDiff(poseEkf.X(2,0), startYaw);
 
@@ -1481,13 +1533,13 @@ void toggleMenu() {
     EEPROM.write(modeByte, option);
     EEPROM.commit();
     interTimer = millis();
-  } 
+  }
   menu = true;
   //Serial.println("Menu");
 }
 /*TODO: bno calibration and wifi? */
 void modeChooser() {
-  
+   
 }
 
 
@@ -1522,13 +1574,12 @@ void setup() {
   delay(1000);
   Serial.println(esp_reset_reason());
 
-  //WIFI
-  pinMode(changePin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(changePin), onButtonPress, RISING);
-  WiFi.mode(WIFI_OFF);
-  logQueue = xQueueCreate(32,sizeof(LogMessage));
-  xTaskCreate(logTask,"logTask",4096,NULL,1,NULL);
-  vTaskPrioritySet(NULL,3);
+  //WIFI 
+  // pinMode(changePin, INPUT_PULLUP);
+  // attachInterrupt(digitalPinToInterrupt(changePin), onButtonPress, RISING);
+  // WiFi.mode(WIFI_OFF);
+  // logQueue = xQueueCreate(32,sizeof(LogMessage));
+  // xTaskCreate(logTask,"logTask",4096,NULL,1,NULL);
 
   //BNO
   bno.init();
@@ -1553,6 +1604,7 @@ void setup() {
   {
     Serial.println("oops No bno offsets to load :(");
     calibrateBnoAndSave(bno);//TODO: calibration using button mayenfa3sh nedkhol el mosab2a keda what if fy el round karar ye3ml calibration
+    delay(200000);
   }
   else
   {
@@ -1575,37 +1627,30 @@ void setup() {
   bnoMutex = xSemaphoreCreateMutex();
   xTaskCreate(bnoOffsetTask, "bnoOffsetTask", 2048, NULL, 1, &bnoOffsetTaskHandle);
   
-  ////Serial.println("done withe the bno");
-  
-  for (const auto &[trig_pin, echo_pin] : ir_array) {
-    pinMode(trig_pin, OUTPUT);
-    digitalWrite(trig_pin, LOW);
-    pinMode(echo_pin, INPUT);
-  }
   setupIR();
-
-  ////Serial.println("Done with the irs");
   
   interTimer = millis();
-
-  poseEkf.Init();
-
+  
   leftEncoder.setPosition(0);
   rightEncoder.setPosition(0);
+  
+  poseEkf.Init();
+  poseMutex = xSemaphoreCreateMutex();
+  poseEkf.X(2,0) = theoreticalHeading = getOrientationX();
+  xTaskCreate(ekfTask, "ekfTask", 2048, NULL, 1, &ekfTaskHandle);
 
-  theoreticalHeading = getOrientationX();
-  poseEkf.X(2,0) = getOrientationX(); 
-  ekfUpdate();
 
+  //IR calibration
   // for(int i=1;i<4;i++)//starting from 1 cuz 0,1 calibrate ma3 ba3d
   //   IRCalibration(i);
+  // vTaskPrioritySet(NULL,3);//raises priority of void loop
 
+  delay(10);
   Serial.println("khalast setup");
 }
 
 
-
-
+/*
 void loop() {
   // put your main code here, to run repeatedly:
   // moveF(1);
@@ -1757,7 +1802,7 @@ void loop() {
         Serial.println("done flood to begin");
         exploreToStart();
         Serial.println("done exploretostart");
-        //log("done!!!! The best run is "+ current_run);
+        // Log("done!!!! The best run is "+ current_run);
       }
     } else if (option == '1') {
       ekfUpdate();
@@ -1811,86 +1856,25 @@ void loop() {
   }
   
 }
+*/
 
-
-/*
-void setup()
-{
-  EEPROM.begin(EEPROM_SIZE);
-  Serial.begin(115200);
-  delay(1000);
-  Serial.println(esp_reset_reason());
-
-  //WIFI
-  pinMode(changePin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(changePin), onButtonPress, RISING);
-  WiFi.mode(WIFI_OFF);
-  logQueue = xQueueCreate(32,sizeof(LogMessage));
-  xTaskCreate(logTask,"logTask",4096,NULL,1,NULL);
-  vTaskPrioritySet(NULL,3);
-
-  //BNO
-  bno.init();
-  delay(50);
-  if(bno.isConnected())
-  Serial.println("BNO Connected yayy");
-  else
-  {
-  Serial.println("lol no BNO detected!");
-  delay(50000);
-  }
-  delay(10);
-  Calibration_t s{};
-  bno.calibration_status(s);
-  Serial.print("pre-load calib: ");
-  Serial.print(s.sys); Serial.print("/");
-  Serial.print(s.gyro); Serial.print("/");
-  Serial.print(s.accel); Serial.print("/");
-  Serial.println(s.mag);
-  if(loadBnoCalibration(bno) == 0)
-  {
-    Serial.println("oops No bno offsets to load :(");
-    calibrateBnoAndSave(bno);
-  }
-  else
-  {
-    Serial.println("Calibration offsets loaded :)");
-    bno.calibration_status(s);
-    Serial.print("post-load calib: ");
-    Serial.print(s.sys); Serial.print("/");
-    Serial.print(s.gyro); Serial.print("/");
-    Serial.print(s.accel); Serial.print("/");
-    Serial.println(s.mag);
-  }
-
-  // bno.set_mode(operation_mode::IMU);
-  // delay(10);
-  // uint8_t buf[20];
-  // bno.read_register(imu_registers::mode::OPR_MODE,buf,1);
-  // Serial.print("mode: ");Serial.println(buf[0],HEX);
-
-  delay(2000);
-  bnoMutex = xSemaphoreCreateMutex();
-  xTaskCreate(bnoOffsetTask, "bnoOffsetTask", 2048, NULL, 1, &bnoOffsetTaskHandle);
-  
-  setupIR();
-
-  poseEkf.Init();
-  theoreticalHeading = getOrientationX();
-  poseEkf.X(2,0) = getOrientationX(); 
-
-  
-  // for(int i=0;i<4;i++)
-  //   IRCalibration(i);
-  Serial.println("khalast setup");
-}
 
 void loop()
-{        
-  Logln("hi");   
-  delay(200);
-  ekfUpdate();
-  moveF(1);
+{    
+  double x,y,yawww;    
+  turn(90);
+  xSemaphoreTake(poseMutex, pdMS_TO_TICKS(5));
+  x = poseEkf.X(0,0);
+  y = poseEkf.X(1,0);
+  yawww = poseEkf.X(2,0);
+  xSemaphoreGive(poseMutex);
+  
+  Serial.print("    x=");Serial.print(x);
+  Serial.print("  y=");Serial.print(y);
+  Serial.print("  yaw=");Serial.println(yawww);
+  delay(1000);
+
+  // moveF(1);
   // checkDiagonalEdges();
   // // delay(100);
   // if(edgeRight())
@@ -1932,23 +1916,8 @@ void loop()
   //   Serial.print(irToDist(readings[i],i));Serial.print("  ");
   // }
   // Serial.println();
-  // Serial.print("  x=");Serial.print(xPosition);
-  // Serial.print("  y=");Serial.print(yPosition);
-  // Serial.print("  yaw=");Serial.print(yaw);
-  // Serial.print("    x=");Serial.print(poseEkf.X(0,0));
-  // Serial.print("  y=");Serial.print(poseEkf.X(1,0));
-  // Serial.print("  theta=");Serial.println(poseEkf.X(2,0));
 
-  
-  //   Serial.print("  P(0,2)=");Serial.print(poseEkf.P(0,2));
-  //   Serial.print("  P(1,2)=");Serial.println(poseEkf.P(1,2));
-   
-  //moveF(1);
-  // delay(1000);
-  // turn(90);
-  // delay(1000);
-  // turn(-90);
-  // delay(1000);
+
   // turn(90);
   // moveF(1);
   // turn(90);
@@ -1957,6 +1926,7 @@ void loop()
   // moveF(1);
   // turn(90);
   // moveF(1);
+
   // Logln("first square!");
   // delay(500);
   // ekfUpdate();
@@ -1998,4 +1968,3 @@ void loop()
   // if(wallRight()) {Serial.println("WALL RIGHT");delay(2000);}
 
 }
-*/
