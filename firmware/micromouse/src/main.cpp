@@ -845,7 +845,7 @@ double angleDiff(double start, double goal) {
 
 
 inline float getOrientationX() {
-  return bno.euler().x();
+  return bno.euler().z();
 }
 
 
@@ -914,8 +914,8 @@ void modeChooser() {
 
 
 void setup() {
-  //   // put your setup code here, to run once:
-  Serial.begin(115200);
+delay(1000);
+    Serial.begin(115200);
     delay(500);
 
   pinMode(selectorPin, INPUT_PULLUP);
@@ -954,6 +954,10 @@ void setup() {
   // analogWriteResolution(rightMotorBackward, 10);
 
     bno.begin();
+    bno.remap_axis(
+    static_cast<::remap_axis>(0x06),
+    static_cast<remap_sign>(0x04)
+    );
 
 
 
@@ -1009,9 +1013,11 @@ void setup() {
   //yawOffset = yaw;
 
   //Serial.println("Done with the setup");
-    while (1) {
-        Serial.println(bno.euler().x());
+    while (true) {
+       Serial.println(bno.euler().z());
+        delay(100);
     }
+
 }
 
 
