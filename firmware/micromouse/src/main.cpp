@@ -1009,11 +1009,10 @@ void setup() {
       ;
   }
 
-
   //bno.setSensorOffsets(calib);
 
   // Set operation mode to NDOF_FMC_OFF (9-axis fusion with fast mag calibration off)
-  bno.setMode(OPERATION_MODE_IMUPLUS);
+  bno.setMode(OPERATION_MODE_NDOF);
   delay(20);
 
   //delay(1000);
@@ -1021,6 +1020,7 @@ void setup() {
   ////Serial.println("done withe the bno");
   // digitalWRite(leftMotorForward , HIGH);
   // digitalWrite(rightMotorForward,HIGH);
+    Serial.println("bno started");
 
   leftEncoder.setPosition(0);
   rightEncoder.setPosition(0);
