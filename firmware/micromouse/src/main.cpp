@@ -1,31 +1,24 @@
-#include <Wire.h>
-#include <Adafruit_Sensor.h>
-#include <Adafruit_BNO055.h>
-#include <utility/imumaths.h>
+#include <Arduino.h>
+#include <BNO055.h>
+// #include <SPI.h>
+// #include <Adafruit_Sensor.h>
+// #include <Adafruit_BNO055.h>
+// #include <utility/imumaths.h>
 #include <RotaryEncoderPCNT.h>
-#include <EEPROM.h>
-// #include <WiFi.h>
-// #include <WebServer.h>
 
-// String dataTosend ;
-
-// // Replace with your network credentials
-// const char* ssid = "Borham2";
-// const char* password = "18046768";
-
-adafruit_bno055_offsets_t calib = {
-  /* accel_offset_x */ 2,
-  /* accel_offset_y */ 4,
-  /* accel_offset_z */ 15,
-  /* mag_offset_x   */ -153,
-  /* mag_offset_y   */ 532,
-  /* mag_offset_z   */ 30,
-  /* gyro_offset_x  */ -2,
-  /* gyro_offset_y  */ 1,
-  /* gyro_offset_z  */ 0,
-  /* accel_radius   */ 1000,
-  /* mag_radius     */ 965
-};
+// adafruit_bno055_offsets_t calib = {
+//   /* accel_offset_x */ 2,
+//   /* accel_offset_y */ 4,
+//   /* accel_offset_z */ 15,
+//   /* mag_offset_x   */ -153,
+//   /* mag_offset_y   */ 532,
+//   /* mag_offset_z   */ 30,
+//   /* gyro_offset_x  */ -2,
+//   /* gyro_offset_y  */ 1,
+//   /* gyro_offset_z  */ 0,
+//   /* accel_radius   */ 1000,
+//   /* mag_radius     */ 965
+// };
 
 // // Create a web server on port 80
 // WebServer server(80);
@@ -51,7 +44,7 @@ double fixSpeed(double speed);
 double calculateDistance(double x, double y);
 float getLin();
 
-
+imu bno(16,21, I2C_NUM_0, 0X29);
 
 #define MAX_H 18
 #define MAX_W 18
@@ -104,12 +97,6 @@ queue r_q;
 queue c_q;
 
 
-
-
-
-
-
-
 #define ticksperlafa 1400
 #define circumference 10.681
 #define distance_between_wheels 9
@@ -119,13 +106,13 @@ queue c_q;
 // right motor pins
 #define rightMotorForward 15
 #define rightMotorBackward 17
-RotaryEncoderPCNT rightEncoder(7, 8);
+// RotaryEncoderPCNT rightEncoder(7, 8);
 double previousRight;
 
 // left motor pins 17 15
 #define leftMotorForward 14
 #define leftMotorBackward 13
-RotaryEncoderPCNT leftEncoder(10, 9);  // 8 7
+// RotaryEncoderPCNT leftEncoder(10, 9);  // 8 7
 double previousLeft;
 
 
@@ -138,7 +125,7 @@ double yaw = 0;
 double yawOffset = 0;
 
 
-Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x29, &Wire);
+// Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x29, &Wire);
 
 
 
@@ -225,18 +212,15 @@ char dequeue(queue &q) {
     return 0;
 }
 
-
-
-
 //end of queue implementation
 
-void update_mms_maze() {
-  // for (int i = 1; i <= 16; i++) {
-  //   for (int j = 1; j <= 16; j++) {
-  //     //setText(j-1,16-i,tostr(dis[i][j]));
-  //   }
-  // }
-}
+// void update_mms_maze() {
+//   // for (int i = 1; i <= 16; i++) {
+//   //   for (int j = 1; j <= 16; j++) {
+//   //     //setText(j-1,16-i,tostr(dis[i][j]));
+//   //   }
+//   // }
+// }
 
 void set_wall() {
   // ////Serial.println("\ncoloring walls" + String(curr_c - 1) + " " + String(16 - curr_r));
@@ -279,9 +263,9 @@ void flood(bool goal = 1) {  // make goal = 0 to change the goal to the start
     // dis[14][3] = 0;
     // enqueue(r_q, 14);
     // enqueue(c_q, 3);
-    for (char x = MAX_W / 2 - 1; x < MAX_W / 2 + 1; x++)
+    for (char x = 13; x < 15; x++) //x = MAX_W / 2-1; x < MAX_W
     { // change middle cells with 0
-        for (char w = MAX_H / 2 - 1; w < MAX_H / 2 + 1; w++)
+        for (char w = 3; 5; w++)
         {
             dis[x][w] = 0;
             // r_q.push(x);
@@ -316,7 +300,6 @@ void flood(bool goal = 1) {  // make goal = 0 to change the goal to the start
       }
     }
   }
-  update_mms_maze();
 }
 
 
@@ -383,7 +366,7 @@ int flooded = 0;
 void exploreToCenter() {
   motionSuccessful = 1;
   flooded = 0;
-  while(!(((curr_r == MAX_H / 2 - 1) || (curr_r == MAX_H / 2)) && ((curr_c == MAX_W / 2 - 1) || (curr_c == MAX_W / 2)))){
+  while(!(((curr_r == 13) || (curr_r == 14)) && ((curr_c == 3) || (curr_c == 4)))){
   //while (!(((curr_r == 12) || (curr_r == 13)) && ((curr_c == 4) || (curr_c == 5))) && !menu ) {
     //while(!(curr_r == 14 && curr_c == 3) && !menu){
     Serial.println("Exploring to center" + String((int)curr_c )+" "+String((int)curr_r) + String((int)curr_dir));
@@ -710,13 +693,13 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
   double startX = xPosition, startY = yPosition;
   double startYaw = theoreticalHeading;
 
-  long startRight = rightEncoder.position();
-  long startLeft = leftEncoder.position();
+  // long startRight = rightEncoder.position();
+  // long startLeft = leftEncoder.position();
   long rightTicks, leftTicks;
   long startTime = millis();
 
-  rightEncoder.setPosition(0);
-  leftEncoder.setPosition(0);
+  // rightEncoder.setPosition(0);
+  // leftEncoder.setPosition(0);
   previousLeft=0;
   previousRight=0;
 
@@ -759,8 +742,8 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
   while ((abs(errorL) > 0.2) && timeout_ctr < 50)  // this 1 might change
   {
     //READIRS();
-    rightTicks = rightEncoder.position() - startRight;
-    leftTicks = leftEncoder.position() - startLeft;
+    // rightTicks = rightEncoder.position() - startRight;
+    // leftTicks = leftEncoder.position() - startLeft;
     long deltaTicks = rightTicks - leftTicks;
     // static double integralval = 0 ;
     // if (fabs(integralval) > 255)
@@ -862,27 +845,25 @@ double angleDiff(double start, double goal) {
 
 
 inline float getOrientationX() {
-  sensors_event_t orientationData;
-  bno.getEvent(&orientationData, Adafruit_BNO055::VECTOR_EULER);
-  return orientationData.orientation.x;
+  return bno.euler().x();
 }
 
+
 inline float getRate() {
-  sensors_event_t gyroData;
-  bno.getEvent(&gyroData, Adafruit_BNO055::VECTOR_GYROSCOPE);
-  return gyroData.gyro.x;  // might change it to gyro.z msh x , haven't tested yet -----------------------------------------------------------------------IMPORTANT
+  return bno.gyro().y();
+    // // might change it to gyro.z msh x , haven't tested yet -----------------------------------------------------------------------IMPORTANT
 }
 
 float getLin() {
-  sensors_event_t linearAccelData;
-  bno.getEvent(&linearAccelData, Adafruit_BNO055::VECTOR_LINEARACCEL);
-  return linearAccelData.acceleration.z;
+    return bno.acceleration().z();
 }
 
 inline void getPosition() {
-  double leftRevolutions = 1.0 * leftEncoder.position() / ticksperlafa;
-  double rightRevolutions = 1.0 * rightEncoder.position() / ticksperlafa;
+  // double leftRevolutions = 1.0 * leftEncoder.position() / ticksperlafa;
+  // double rightRevolutions = 1.0 * rightEncoder.position() / ticksperlafa;
 
+    double leftRevolutions = 1;
+    double rightRevolutions = 1.0 ;
   double leftDistance = (leftRevolutions - previousLeft) * circumference;
   double rightDistance = (rightRevolutions - previousRight) * circumference;
   double distance = (leftDistance + rightDistance) / 2;
@@ -900,15 +881,6 @@ inline void getPosition() {
   previousLeft = leftRevolutions;
   previousRight = rightRevolutions;
 }
-
-
-
-
-
-
-
-
-
 
 // String generateHTML() {
 
@@ -936,8 +908,6 @@ void modeChooser() {
   if (menu && millis() - interTimer > 250) {
     //Serial.print("changing mode");
     option = '0' + (option - '0' + 1) % 3;
-    EEPROM.write(modeByte, option);
-    EEPROM.commit();
     interTimer = millis();
   }
 }
@@ -946,14 +916,13 @@ void modeChooser() {
 void setup() {
   //   // put your setup code here, to run once:
   Serial.begin(115200);
+    delay(500);
 
-  EEPROM.begin(32);  // Allocate 512 bytes for EEPROM emulation
   pinMode(selectorPin, INPUT_PULLUP);
   pinMode(changePin, INPUT_PULLUP);
 
   attachInterrupt(digitalPinToInterrupt(changePin), toggleMenu, RISING);
   attachInterrupt(digitalPinToInterrupt(selectorPin), modeChooser, RISING);
-  option = EEPROM.read(modeByte);
   if (option < '0' || option > '2') option = '1';
 
 
@@ -984,6 +953,8 @@ void setup() {
   // analogWriteResolution(rightMotorForward, 10);
   // analogWriteResolution(rightMotorBackward, 10);
 
+    bno.begin();
+
 
 
   analogWrite(leftMotorForward, 0);
@@ -991,39 +962,37 @@ void setup() {
   analogWrite(rightMotorForward, 0);
   analogWrite(rightMotorBackward, 0);
 
-  //delay(5000);
-
-  // Serial.begin(115200);
   initialise(c_q, MAX_H * MAX_W);  //queue initialisation for storing row and coloumn
   initialise(r_q, MAX_H * MAX_W);
-  update_mms_maze();
-  //log("Khalast setup");
-  Wire.begin(21, 16);
-  bno = Adafruit_BNO055(55, 0x29, &Wire);
+
+
+    //log("Khalast setup");
+  // Wire.begin(21, 16);
+  // bno = Adafruit_BNO055(55, 0x29, &Wire);
   //while (!Serial) delay(10);
   ////Serial.println("start");
-  if (!bno.begin())  // lol
-  {
-    ////Serial.println("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
-    while (1)
-      ;
-  }
+  // if (!bno.begin())  // lol
+  // {
+  //   ////Serial.println("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
+  //   while (1)
+  //     ;
+  // }
 
   //bno.setSensorOffsets(calib);
 
   // Set operation mode to NDOF_FMC_OFF (9-axis fusion with fast mag calibration off)
-  bno.setMode(OPERATION_MODE_NDOF);
+  // bno.setMode(OPERATION_MODE_NDOF);
   delay(20);
 
   //delay(1000);
-  bno.setExtCrystalUse(true);
+  // bno.setExtCrystalUse(true);
   ////Serial.println("done withe the bno");
   // digitalWRite(leftMotorForward , HIGH);
   // digitalWrite(rightMotorForward,HIGH);
     Serial.println("bno started");
 
-  leftEncoder.setPosition(0);
-  rightEncoder.setPosition(0);
+  // leftEncoder.setPosition(0);
+  // rightEncoder.setPosition(0);
   getPosition();
 
   for (const auto &[trig_pin, echo_pin] : ir_array) {
@@ -1040,6 +1009,9 @@ void setup() {
   //yawOffset = yaw;
 
   //Serial.println("Done with the setup");
+    while (1) {
+        Serial.println(bno.euler().x());
+    }
 }
 
 
