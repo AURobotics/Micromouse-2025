@@ -7,145 +7,6 @@
 #include "esp_system.h"
 #include "ekf.h"
 #undef F
-#include <WiFi.h>
-
-// // Replace with your network credentials
-const char* ssid = "Farghaly";
-const char* password = "42429400";
-const uint16_t LOG_PORT = 23; //view logs using: nc <ip> 23 //ip is printed on serial monitor in setup
-volatile bool wifiEnable = false;
-volatile bool wifiUp = false;
-volatile unsigned long lastWifiInterruptTime = 0;
-
-WiFiServer server(LOG_PORT);
-WiFiClient client;
-struct LogMessage {
-  char text[64]; //max char per log line
-};
-QueueHandle_t logQueue;
-
-void IRAM_ATTR onButtonPress() {
-  unsigned long now = millis();
-  if (now - lastWifiInterruptTime > 500) {
-    wifiEnable = !wifiEnable;
-    lastWifiInterruptTime = now;
-  }
-}
-
-static inline void queueLog(const char* text) {
-  if (!wifiEnable || logQueue == NULL) return;
-  LogMessage msg;
-  strncpy(msg.text, text, 64 - 1);
-  msg.text[64 - 1] = '\0';
-
-  if (xQueueSend(logQueue, &msg, 0) != pdTRUE) {
-    //if queue is full dequeue and enqueue the newest message
-    LogMessage discard;
-    xQueueReceive(logQueue, &discard, 0);
-    xQueueSend(logQueue, &msg, 0);          
-  }
-}
-/*TODO: redo all these functions using templates(not sure how yet) (2functions only log() and logln()) 
-bas for now these will do*/
-void Log(const char* value) { 
-  Serial.print(value);
-  if(wifiUp) queueLog(value); 
-}
-void Log(const String& value) { 
-  Serial.print(value);
-  if(wifiUp) queueLog(value.c_str()); 
-}
-void Log(int value) {
-  Serial.print(value);
-  if(wifiUp) {char buf[16]; snprintf(buf, sizeof(buf), "%d", value); queueLog(buf);}
-}
-void Log(float value) {
-  Serial.print(value);
-  if(wifiUp) {char buf[24]; dtostrf(value, 0, 3, buf); queueLog(buf);}
-}
-void Logln(const char* value) {
-  Serial.println(value);
-  if(wifiUp) {char buf[64]; snprintf(buf, sizeof(buf), "%s\n", value); queueLog(buf);}
-}
-void Logln(const String& value){
-  Serial.println(value);
-  if(wifiUp){char buf[64]; snprintf(buf, sizeof(buf), "%s\n", value); queueLog(buf);}
-}
-void Logln(int value) {
-  Serial.println(value);
-  if(wifiUp) {char buf[16]; snprintf(buf, sizeof(buf), "%d\n", value); queueLog(buf);}
-}
-void Logln(float value) {
-  Serial.println(value);
-  if(wifiUp) {char buf[24]; dtostrf(value, 0, 3, buf); strncat(buf, "\n", sizeof(buf) - strlen(buf) - 1);
-  queueLog(buf);}
-}
-void Logln() { Serial.println(); if(wifiUp) {queueLog("\n");} }
-
-static void bringWifiUp() {
-  Serial.println("Enabling WiFi...");
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 1500) {
-    // vTaskDelay(pdMS_TO_TICKS(100));
-    delay(100);
-  }
-
-  if (WiFi.status() == WL_CONNECTED) {
-    server.begin();
-    wifiUp= true;
-    Serial.print("WiFi enabled. IP address: ");
-    Serial.println(WiFi.localIP());
-  } else {
-    Serial.println("oops Wifi enable failed. Turning radio back off.");
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_OFF);
-    wifiUp = false;
-    wifiEnable = false;
-  }
-}
-static void bringWifiDown() {
-  Serial.println("Disabling WiFi...");
-  if (client) client.stop();
-  wifiUp = false;
-  server.end();
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
-  Serial.println("WiFi disabled.");
-}
-void logTask(void* param) {
-  LogMessage msg;
-  bool wifiUpLastSeen = false;
-
-  while(1){
-    if (wifiEnable != wifiUpLastSeen) {
-      if (wifiEnable) {
-        bringWifiUp();
-      } else {
-        bringWifiDown();
-      }
-      wifiUpLastSeen = wifiUp; // reflect whatever bringWifiUp/Down actually achieved
-    }
-    if (!wifiUp) {
-      // Radio is off - nothing to serve, just wait and re-check the flag.
-      vTaskDelay(pdMS_TO_TICKS(100));
-      continue;
-    }
-    if (!client || !client.connected()) {
-      WiFiClient newClient = server.available();
-      if (newClient) {
-        client = newClient;
-        Serial.println("Log client connected.");
-      }
-    }
-    if (xQueueReceive(logQueue, &msg, pdMS_TO_TICKS(100)) == pdTRUE) {
-      if (client && client.connected()) {
-        client.print(msg.text);
-      }
-    }
-  }
-}
 
 /*not sure how buttons will work yet so for now hastakhdem changePin to toggle wifi*/
 int modeByte = 2;      //byte where the mode will be stored
@@ -182,7 +43,6 @@ inline double ekfCalculateDistance(double x, double y);
 // struct queue;
 using queue = struct queue;
 
-
 struct queue {
   short head, tail, size, counter;
   char items[MAX_H * MAX_W];
@@ -197,38 +57,39 @@ int previous_run;
 bool maze[MAX_H][MAX_W][5] = { 0 };  // represents the maze, first 4 bits represent the walls N E S W, the last bit represents the visiting status
 //leh mn3melsh byte/char maze[MAX_H][MAX_W] ?
 
-// short dis[MAX_H][MAX_W] = {
-//   { 16, 15, 14, 13, 12, 11, 10, 9, 8, 8, 9, 10, 11, 12, 13, 14, 15, 16 },
-//   { 15, 14, 13, 12, 11, 10, 9, 8, 7, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
-//   { 14, 13, 12, 11, 10, 9, 8, 7, 6, 6, 7, 8, 9, 10, 11, 12, 13, 14 },
-//   { 13, 12, 11, 10, 9, 8, 7, 6, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13 },
-//   { 12, 11, 10, 9, 8, 7, 6, 5, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12 },
-//   { 11, 10, 9, 8, 7, 6, 5, 4, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11 },
-//   { 10, 9, 8, 7, 6, 5, 4, 3, 2, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
-//   { 9, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
-//   { 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8 },
-//   { 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8 },
-//   { 9, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
-//   { 10, 9, 8, 7, 6, 5, 4, 3, 2, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
-//   { 11, 10, 9, 8, 7, 6, 5, 4, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11 },
-//   { 12, 11, 10, 9, 8, 7, 6, 5, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12 },
-//   { 13, 12, 11, 10, 9, 8, 7, 6, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13 },
-//   { 14, 13, 12, 11, 10, 9, 8, 7, 6, 6, 7, 8, 9, 10, 11, 12, 13, 14 },
-//   { 15, 14, 13, 12, 11, 10, 9, 8, 7, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
-//   { 16, 15, 14, 13, 12, 11, 10, 9, 8, 8, 9, 10, 11, 12, 13, 14, 15, 16 }
-// };
-
-short dis[MAX_H][MAX_W]= {
-  {4,3,2,2,3,4},
-  {3,2,1,1,2,3},
-  {2,1,0,0,1,2},
-  {2,1,0,0,1,2},
-  {3,2,1,1,2,3},
-  {4,3,2,2,3,4}
+short dis[MAX_H][MAX_W] = {
+  { 16, 15, 14, 13, 12, 11, 10, 9, 8, 8, 9, 10, 11, 12, 13, 14, 15, 16 },
+  { 15, 14, 13, 12, 11, 10, 9, 8, 7, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
+  { 14, 13, 12, 11, 10, 9, 8, 7, 6, 6, 7, 8, 9, 10, 11, 12, 13, 14 },
+  { 13, 12, 11, 10, 9, 8, 7, 6, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13 },
+  { 12, 11, 10, 9, 8, 7, 6, 5, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12 },
+  { 11, 10, 9, 8, 7, 6, 5, 4, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11 },
+  { 10, 9, 8, 7, 6, 5, 4, 3, 2, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
+  { 9, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
+  { 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8 },
+  { 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8 },
+  { 9, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
+  { 10, 9, 8, 7, 6, 5, 4, 3, 2, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
+  { 11, 10, 9, 8, 7, 6, 5, 4, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11 },
+  { 12, 11, 10, 9, 8, 7, 6, 5, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12 },
+  { 13, 12, 11, 10, 9, 8, 7, 6, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13 },
+  { 14, 13, 12, 11, 10, 9, 8, 7, 6, 6, 7, 8, 9, 10, 11, 12, 13, 14 },
+  { 15, 14, 13, 12, 11, 10, 9, 8, 7, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
+  { 16, 15, 14, 13, 12, 11, 10, 9, 8, 8, 9, 10, 11, 12, 13, 14, 15, 16 }
 };
+
+// short dis[MAX_H][MAX_W]= {
+//   {4,3,2,2,3,4},
+//   {3,2,1,1,2,3},
+//   {2,1,0,0,1,2},
+//   {2,1,0,0,1,2},
+//   {3,2,1,1,2,3},
+//   {4,3,2,2,3,4}
+// };
 queue r_q;
 queue c_q;
 
+//TODO:
 #define ticksperlafa 1400
 #define circumference 10.681
 #define distance_between_wheels 9
@@ -256,6 +117,7 @@ double yaw = 0;
 double yawOffset = 0;
 inline float getRawYaw();
 //###################################BNO######################################
+//TODO:
 #define EEPROM_SIZE        32  //need more for saving the map          
 #define CALIB_FLAG_ADDR    4           //after modebyte
 #define CALIB_DATA_ADDR    5           // actual calibProfile struct starts here 22 bytes
@@ -270,21 +132,14 @@ SemaphoreHandle_t bnoMutex;
 
 imu bno(SCL_PIN,SDA_PIN,I2C_NUM_0, 0x29);
 
-
-
 constexpr uint8_t ADC1_0 = 1;
 constexpr uint8_t ADC1_1 = 2;
 constexpr uint8_t ADC1_2 = 3;
-constexpr uint8_t ADC1_3 = 4;
-constexpr uint8_t ADC1_4 = 5;
-constexpr uint8_t ADC1_5 = 6;
 
-int frontrightThresh = 100;
-int frontleftThresh = 100;
+//TODO
+int frontThresh = 100;
 int leftThresh = 100;
-int rightThresh = 100;
-int leftdiagThresh = 25;   
-int rightdiagThresh = 30;   
+int rightThresh = 100;   
 int SAMPLES_PER_BURST = 32; 
 
 struct IR {
@@ -292,34 +147,16 @@ struct IR {
   uint8_t echo_pin;
 };
 
-IR front_left_ir = { 36, ADC1_0 };
-IR front_right_ir = { 33, ADC1_5 };
+IR front_ir = { 36, ADC1_0 };
 IR left_ir = { 35, ADC1_2 };
 IR right_ir = { 18, ADC1_3 };
-IR left_diagonal_ir = { 40, ADC1_1 };
-IR right_diagonal_ir = { 34, ADC1_4 };
 
-std::array ir_array = { front_left_ir, front_right_ir, left_ir, right_ir, left_diagonal_ir, right_diagonal_ir };
-int readings[6];
-int k_ir[6];
-bool leftEdge;
-bool rightEdge;
-/*
-  3amalt leftEdge and rightEdge global variables 3ashan we 
-  need them saved 3ashan once i saw an edge lazem afdal 
-  fakra eny shoft el edge tool el move le7ad ma atla3 men
-  el tile
-  fa checkDiagonalEdges() updates global variables
-  edgeRight(),edgeLeft() just read the global variables
-  bas 3ashan yeb2o shabah ba2y el functions to be easily 
-  readable
-  IMPORTANT:entering every tile leftEdge and rightEdge need to be set to false
-*/
+std::array ir_array = { front_ir, left_ir, right_ir};
+int readings[3];
+
 int currentSensor = 0;
 bool litPhase = false;
 int32_t darkVal = 0;
-int prevLeftDiag = 0;
-int prevRightDiag = 0;
 
 adc_continuous_handle_t adcHandle = NULL;
 TaskHandle_t irTaskHandle = NULL;
@@ -680,52 +517,38 @@ void exploreToStart() {
 int theoreticalHeading = 0;
 
 float calDistances[6] = { 4, 6, 8, 10, 12, 15 };   // cm values ana mekhtaraha 
-int   calReadings[4][6] = { {640, 295, 178, 119, 88, 61},
-                            {571, 279, 171, 116, 83, 57},
-                            {669, 317, 189, 123, 90, 64},
-                            {648, 299, 173, 119, 82, 58} }; 
+int   calReadings[3][6] = { 0}; //TODO
 //values tal3a men calibration // 3amalt calibration then hardcoded them 3ashan probably mesh hayet8ayaro
 
-/*will not do diagonals 3ashan mesh hane7tag ne7seblohom distance 
-hayeb2a kefaya bas nakhod el threshold feeh wall wala la2*/
 /*this part 3ashan ne2dar ne7seb el distance 3ashan ne2dar ne3del el heading using el walls
 and also 3ashan ne fuse the data bardo fy el kalman filter ma3 el encoders and gyro*/
 
 void IRCalibration(int sensor) {
   Serial.print("IR calibration("); Serial.print(sensor); Serial.println("): position robot");
-  for (int i = 0; i < 6; i++) {
 
+  for (int i = 0; i < 6; i++) {
     Serial.print("Move "); Serial.print(sensor); Serial.print(" to ");
     Serial.print(calDistances[i]);
     Serial.println(" cm from wall, then press any key + enter");
+
     while (!Serial.available());
     while (Serial.available()) Serial.read();  // clear buffer
 
-    long sum0 = 0,sum1 = 0;
-    for (int s = 0; s < 20; s++) { 
-      if(sensor == 1)
-        sum0 += readings[sensor-1];  
-      sum1 += readings[sensor];delay(20);
+    long sum = 0;
+    for (int s = 0; s < 20; s++) {
+      sum += readings[sensor];
+      delay(20);
     }
-    delay(20); 
-    if(sensor == 1)
-      calReadings[sensor-1][i] = sum0 / 20;
-    calReadings[sensor][i] = sum1 / 20;
-  }
-  
-  if(sensor == 1){
-    Serial.print(" calReadings["); Serial.print(sensor-1); Serial.print("] = ");
-    for(int i=0;i<6;i++){
-      Serial.print(calReadings[sensor-1][i]); Serial.print(", ");
-    }
-    Serial.println();
+
+    calReadings[sensor][i] = sum / 20;
   }
 
   Serial.print(" calReadings["); Serial.print(sensor); Serial.print("] = ");
-  for(int i=0;i<6;i++){
-      Serial.print(calReadings[sensor][i]); Serial.print(", ");
-    }
+  for (int i = 0; i < 6; i++) {
+    Serial.print(calReadings[sensor][i]); Serial.print(", ");
+  }
   Serial.println();
+
   Serial.print(sensor);
   Serial.println(" calibration done. Copy calReadings[] values into your code");
 }
@@ -840,20 +663,20 @@ void setupIR() {
 
 bool frontEmergency()
 {
-  if (readings[0] > 1250 || readings[1] > 1250) return 1;
+  if (readings[0] > 1250) return 1;
   return 0;
 }
 
-
+//TODO:channels beto3 irs
 bool wallFront() {
   for (int i = 0; i < 10; i++) {
-    if (readings[0] > frontleftThresh && readings[1] > frontrightThresh) return 1;
+    if (readings[0] > frontThresh ) return 1;
   }
   return 0;
 }
 bool wallRight() {
   for (int i = 0; i < 10; i++) {
-    if (readings[3] > rightThresh) return 1;
+    if (readings[1] > rightThresh) return 1;
   }
   return 0;
 }
@@ -864,81 +687,6 @@ bool wallLeft() {
   return 0;
 }
 
-inline void checkDiagonalEdges() {
-  bool leftWasWall  = prevLeftDiag  > leftdiagThresh;
-  bool rightWasWall = prevRightDiag > rightdiagThresh;
-
-  bool leftIsWall  = readings[4] > leftdiagThresh;
-  bool rightIsWall = readings[5] > rightdiagThresh;
-
-  leftEdge  = (leftWasWall  && !leftIsWall);   
-  rightEdge = (rightWasWall && !rightIsWall);
-
-  prevLeftDiag  = readings[4];
-  prevRightDiag = readings[5];
-}
-
-bool edgeLeft()  { return leftEdge; }
-bool edgeRight() { return rightEdge; }
-
-inline void e3delHeadingUsingWall(){ 
-  if(irToDist(readings[0],0) < 15 && irToDist(readings[1],1) < 15)
-  {
-    while(abs(irToDist(readings[0],0) - irToDist(readings[1],1)) > 0.5)
-    {
-      if(irToDist(readings[0],0) > irToDist(readings[1],1))
-      {
-        analogWrite(leftMotorForward, 80);
-        analogWrite(leftMotorBackward, -80);
-
-        analogWrite(rightMotorForward, -80);
-        analogWrite(rightMotorBackward, 80);
-        delay(10);
-      }
-
-      if(irToDist(readings[0],0) < irToDist(readings[1],1))
-      {
-        analogWrite(leftMotorForward, -80);
-        analogWrite(leftMotorBackward, 80);
-
-        analogWrite(rightMotorForward, 80);
-        analogWrite(rightMotorBackward, -80);
-        delay(10);
-      }
-    }
-    analogWrite(leftMotorForward, 0);
-    analogWrite(leftMotorBackward, 0);
-    analogWrite(rightMotorForward, 0);
-    analogWrite(rightMotorBackward, 0);
-  }
-  
-}
-class IIRFilter {
-public:
-    IIRFilter(float alpha = 0.3f) : alpha(alpha), y_prev(0), initialized(false) {}
-
-    float update(float x) {
-        if (!initialized) {
-            y_prev = x;          // avoid startup transient
-            initialized = true;
-            return y_prev;
-        }
-        y_prev = alpha * x + (1.0f - alpha) * y_prev;
-        return y_prev;
-    }
-
-    void reset(float val = 0.0f) {
-        y_prev = val;
-        initialized = false;
-    }
-
-    void setAlpha(float a) { alpha = a; }
-
-private:
-    float alpha;
-    float y_prev;
-    bool initialized;
-};
 
 class PoseEKF : public ekf {
 public:
@@ -984,8 +732,6 @@ SemaphoreHandle_t poseMutex;
 
 long ekfPrevRightTicks = 0;
 long ekfPrevLeftTicks = 0;
-IIRFilter rightVFilter(0.3f);//-------------------------------------------------------------------------------------need to tune
-IIRFilter leftVFilter(0.3f);
 
 void ekfPredict(float dt) {
   long rightPos = rightEncoder.position();
@@ -1015,85 +761,6 @@ void ekfPredict(float dt) {
   float u[1] = { v };
   poseEkf.Process(u, dt);
 }
-
-/*
-int leftSign[4]    = { -1, +1, +1, -1 };  // side-sensor sign, indexed by curr_dir
-float forwardSign[4] = { +1, +1, -1, -1 };
-bool  forwardIsY[4]  = { true, false, true, false };
-
-const float leftExpectedReading  = 7;
-const float rightExpectedReading = 7;
-const float frontLeftExpectedReading  = 6.6;
-const float frontRightExpectedReading = 6.6;
-
-void ekfCorrectWalls() {
-  
-  int  lateralAxis = (curr_dir == 1 || curr_dir == 3); //E/W
-  int  forwardAxis = (curr_dir == 0 || curr_dir == 2); //N/S
-
-  float expectedX = (curr_c - 1) * 18; //(curr_c - START_COL) * TILE_SIZE
-  float expectedY = (16 - curr_r) * 18;//(START_ROW - curr_r) * TILE_SIZE
-  float lateralCenter = forwardAxis ? expectedX : expectedY;
-
-  dspm::Mat H(1, 3);
-  float R[1] = { 0.3f };
-
-  // ---- lateral correction (side sensors) ----
-  if (wallLeft()) {
-    float d = irToDist(readings[2], 2);
-    if (d >= 4.0f && d <= 15.0f) {//only correct if readings are inside range
-      float measuredPos = lateralCenter + leftSign[curr_dir] * (leftExpectedReading - d);
-      float expectedPos = poseEkf.X(lateralAxis, 0);
-
-      H(0,0)=0; H(0,1)=0; H(0,2)=0;
-      H(0, lateralAxis) = 1;
-      float measuredArr[1] = { measuredPos };
-      float expectedArr[1] = { expectedPos };
-      poseEkf.Update(H, measuredArr, expectedArr, R);
-    }
-  }
-
-  if (wallRight()) {
-    float d = irToDist(readings[3], 3);
-    if (d >= 4.0f && d <= 15.0f) {
-      float measuredPos = lateralCenter - leftSign[curr_dir] * (rightExpectedReading - d);
-      float expectedPos = poseEkf.X(lateralAxis, 0);
-
-      H(0,0)=0; H(0,1)=0; H(0,2)=0;
-      H(0, lateralAxis) = 1;
-      float measuredArr[1] = { measuredPos };
-      float expectedArr[1] = { expectedPos };
-      poseEkf.Update(H, measuredArr, expectedArr, R);
-    }
-  }
-
-  // ---- forward correction (front sensors) ----
-  if (wallFront()) {
-    float dLeft  = irToDist(readings[0], 0);
-    float dRight = irToDist(readings[1], 1);
-    bool leftOk  = (dLeft  >= 4.0f && dLeft  <= 15.0f);
-    bool rightOk = (dRight >= 4.0f && dRight <= 15.0f);
-
-    if (leftOk || rightOk) {
-      float d = leftOk && rightOk ? (dLeft + dRight) / 2.0f
-              : leftOk ? dLeft : dRight;
-      float expectedReading = leftOk && rightOk
-              ? (frontLeftExpectedReading + frontRightExpectedReading) / 2.0f
-              : leftOk ? frontLeftExpectedReading : frontRightExpectedReading;
-
-      float forwardCenter = forwardAxis ? expectedY : expectedX;
-      float measuredPos = forwardCenter + forwardSign[curr_dir] * (expectedReading - d);
-      float expectedPos = poseEkf.X(forwardAxis, 0);
-
-      H(0,0)=0; H(0,1)=0; H(0,2)=0;
-      H(0, forwardAxis) = 1;
-      float measuredArr[1] = { measuredPos };
-      float expectedArr[1] = { expectedPos };
-      poseEkf.Update(H, measuredArr, expectedArr, R);
-    }
-  }
-}
-  */
 
 void ekfTask(void *pvParameters) {
   TickType_t lastWakeTime = xTaskGetTickCount();
@@ -1126,9 +793,9 @@ void turn(double angle) {
   double totalerror = 0;
   unsigned long lastPrint = millis();
   unsigned long lastLoopTime = millis(); 
-  double minSpeed = 15;//--------------------------------------------------------------------------need to tune this
+  double minSpeed = 15;//------------------------------------------------------------------------TODO:need to tune this
 
-  double kp = 1.2;  // Kp and Kd will be set with testing
+  double kp = 1.2;  // TODO:Kp and Kd will be set with testing
   double ki = 0.05;
   double kd = -0.09 ;
 
@@ -1138,7 +805,6 @@ void turn(double angle) {
   int counter = 0;
 
   while (abs(error) > 1 || fabs(getRate()) > 0.5) {
-    // ekfUpdate();
     if(xSemaphoreTake(poseMutex, pdMS_TO_TICKS(5)) == true){
       currentAngle = poseEkf.X(2,0);
       xSemaphoreGive(poseMutex);
@@ -1200,8 +866,7 @@ void turn(double angle) {
 
     }
   }
-  Logln("done turning");
-  // ekfUpdate();
+  Serial.println("done turning");
   
   analogWrite(leftMotorForward, 0);
   analogWrite(leftMotorBackward, 0);
@@ -1245,7 +910,6 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
   double errorA = angleDiff(poseEkf.X(2,0), startYaw);
   double errorAPrev = errorA;
 
-
   //double errorTicks = 0;
   double errorTicksPrev = 0;
 
@@ -1270,18 +934,9 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
 
   //unsigned long  timeout_timer = millis();
   char timeout_ctr = 0;
-  // e3delHeadingUsingWall();
+  
   while ((abs(errorL) > 0.2) && timeout_ctr < 50)  // this 1 might change
   {    
-    // checkDiagonalEdges();
-    // if(edgeRight() or edgeLeft())
-    // {
-    //   analogWrite(leftMotorForward, 0);
-    //   analogWrite(leftMotorBackward, 0);
-    //   analogWrite(rightMotorForward, 0);
-    //   analogWrite(rightMotorBackward, 0);
-    //   return 0;
-    // }
 
     rightTicks = rightEncoder.position() - startRight;
     leftTicks = leftEncoder.position() - startLeft;
@@ -1291,7 +946,6 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
     //     integralval += kiTicks*(deltaTicks - errorTicksPrev)*(millis() - t) ;
     // speedTicks = KpTicks*deltaTicks + KdTicks * (deltaTicks - errorTicksPrev)/(millis() - t)  + integralval;
 
-    // ekfUpdate();
     errorL = desiredDistance - ekfCalculateDistance(startX, startY);
     errorA = angleDiff(poseEkf.X(2,0), startYaw);
 
@@ -1426,7 +1080,7 @@ bool calibrateBnoAndSave(imu& bno) {
         Serial.print("gyro = ");Serial.print(s.gyro);
         Serial.print("accel = ");Serial.print(s.accel);
         Serial.print("mag = ");Serial.println(s.mag);
-        if (s.sys == 3 && s.gyro == 3 && s.accel == 3 && s.mag == 3)
+        if (s.sys == 3 && s.gyro == 3 && s.accel == 3 /*&& s.mag == 3*/)
             break;
         if (millis() - start > TIMEOUT_MS)
         {
@@ -1509,51 +1163,10 @@ void bnoOffsetTask(void *pv)
 
 
 
-// String generateHTML() {
-
-//   String html = "<!DOCTYPE html><html>";
-//   html += "<head><meta http-equiv='refresh' content='2'/>";
-//   html += "<title>ESP32 Sensor Debug</title></head>";
-//   html += "<body><h1>ESP32 Sensor Data</h1>";
-//   html += "<p>Sensor Value: " + dataTosend + "</p>";
-//   html += "</body></html>";
-
-//   return html;
-// }
-
-// void handleRoot() {
-//   server.send(200, "text/html", generateHTML());
-// }
-
-/*first press enters the menu then other presses move between modes*/
-void toggleMenu() {
-  if (menu && millis() - interTimer > 250) {
-    //Serial.print("changing mode");
-    option = '0' + (option - '0' + 1) % 3;
-    EEPROM.write(modeByte, option);
-    EEPROM.commit();
-    interTimer = millis();
-  }
-  menu = true;
-  //Serial.println("Menu");
-}
-/*TODO: bno calibration and wifi? */
-void modeChooser() {
-   
-}
-
-
 void setup() {
 
   EEPROM.begin(EEPROM_SIZE);  // Allocate 512 bytes for EEPROM emulation
-  pinMode(selectorPin, INPUT_PULLUP);
-  pinMode(changePin, INPUT_PULLUP);
-
-  attachInterrupt(digitalPinToInterrupt(changePin), toggleMenu, RISING);
-  attachInterrupt(digitalPinToInterrupt(selectorPin), modeChooser, RISING);
-  option = EEPROM.read(modeByte);
-  if (option < '0' || option > '2') option = '1';
-
+  
   pinMode(leftMotorForward, OUTPUT);
   pinMode(leftMotorBackward, OUTPUT);
   pinMode(rightMotorForward, OUTPUT);
@@ -1574,13 +1187,6 @@ void setup() {
   delay(1000);
   Serial.println(esp_reset_reason());
 
-  //WIFI 
-  // pinMode(changePin, INPUT_PULLUP);
-  // attachInterrupt(digitalPinToInterrupt(changePin), onButtonPress, RISING);
-  // WiFi.mode(WIFI_OFF);
-  // logQueue = xQueueCreate(32,sizeof(LogMessage));
-  // xTaskCreate(logTask,"logTask",4096,NULL,1,NULL);
-
   //BNO
   bno.init();
   delay(50);
@@ -1597,9 +1203,8 @@ void setup() {
   Serial.print("pre-load calib: ");
   Serial.print(s.sys); Serial.print("/");
   Serial.print(s.gyro); Serial.print("/");
-  Serial.print(s.accel); Serial.print("/");
-  Serial.println(s.mag);
-  
+  Serial.println(s.accel);
+
   if(loadBnoCalibration(bno) == 0)
   {
     Serial.println("oops No bno offsets to load :(");
@@ -1613,8 +1218,7 @@ void setup() {
     Serial.print("post-load calib: ");
     Serial.print(s.sys); Serial.print("/");
     Serial.print(s.gyro); Serial.print("/");
-    Serial.print(s.accel); Serial.print("/");
-    Serial.println(s.mag);
+    Serial.println(s.accel); 
   }
 
   // bno.set_mode(operation_mode::IMU);
@@ -1649,8 +1253,6 @@ void setup() {
   Serial.println("khalast setup");
 }
 
-
-/*
 void loop() {
   // put your main code here, to run repeatedly:
   // moveF(1);
@@ -1739,52 +1341,13 @@ void loop() {
   // //Serial.print(" ");
   // //Serial.println(wallRight());
 
-  //   while(1) {
-  //   // server.handleClient();
-  //   flood();
-  //   previous_run = current_run;
-  //   exploreToCenter ();
-  //   current_run = dis[16][1];
-  //   if(current_run != 0 && current_run == previous_run) break;
-  //   flood(0);
-  //   exploreToStart ();
-  //   //log("done!!!! The best run is "+ current_run);
-  //   }
-
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
   // option --> correspondance
   // 0 --> floodfill
   // 1 --> right-hand
   // 2 --> left-hand
-  if (menu) {
-    if (option == '0') {
-      //Serial.println("0 menu");
-      // delay(2000);
-      analogWrite(leftMotorForward, 100);
-      analogWrite(leftMotorBackward, 0);
-      analogWrite(rightMotorForward, 100);
-      analogWrite(rightMotorBackward, 0);
-    } else if (option == '1') {
-      analogWrite(leftMotorForward, 100);
-      analogWrite(leftMotorBackward, 0);
-      analogWrite(rightMotorForward, 0);
-      analogWrite(rightMotorBackward, 100);
-    } else if (option == '2') {
-      analogWrite(leftMotorForward, 0);
-      analogWrite(leftMotorBackward, 100);
-      analogWrite(rightMotorForward, 100);
-      analogWrite(rightMotorBackward, 0);
-    } else {
-      analogWrite(leftMotorForward, 0);
-      analogWrite(leftMotorBackward, 0);
-      analogWrite(rightMotorForward, 0);
-      analogWrite(rightMotorBackward, 0);
-      //Serial.println("WTF HAPPENED?? MENU " + String(option));
-    }
-  } 
-  else {
-    if (option == '0') {
+  
       //Serial.println("0 no menu");
       delay(2000);
       while (!menu) {
@@ -1804,61 +1367,12 @@ void loop() {
         Serial.println("done exploretostart");
         // Log("done!!!! The best run is "+ current_run);
       }
-    } else if (option == '1') {
-      ekfUpdate();
-      analogWrite(leftMotorForward, 0);
-      analogWrite(leftMotorBackward, 0);
-      analogWrite(rightMotorForward, 0);
-      analogWrite(rightMotorBackward, 0);
-      delay(1000);
-      if(!wallRight()){//if (readings[3] < 100) {
-        turn(90);
-        // theoreticalHeading = (theoreticalHeading + 90) % 360;
-        delay(500);
-        moveF(1);
-        //Serial.println("RHRIGHT");
-      } else if (!wallFront()){//else if (readings[0] < 100) {
-        moveF(1);
-        //Serial.println("RHFORWARD");
-      } else {
-        turn(-90);
-        //Serial.println("RHLEFT");
-        // theoreticalHeading = (theoreticalHeading + 270) % 360;
-      }
-    } else if (option == '2') {
-      ekfUpdate();
-      analogWrite(leftMotorForward, 0);
-      analogWrite(leftMotorBackward, 0);
-      analogWrite(rightMotorForward, 0);
-      analogWrite(rightMotorBackward, 0);
-      delay(1000);
-      if(!wallLeft()){//if (readings[2] < 100) {
-        turn(-90);
-        // theoreticalHeading = (theoreticalHeading + 90) % 360;
-        delay(500);
-        moveF(1);
-        //Serial.println("LHLEFT");
-      } else if (!wallFront()){//else if (readings[0] < 100) {
-        moveF(1);
-        //Serial.println("LHFORWARD");
-      } else {
-        turn(90);
-        //Serial.println("RHLEFT");
-        // theoreticalHeading = (theoreticalHeading + 270) % 360;
-      }
-    } else {
-      analogWrite(leftMotorForward, 0);
-      analogWrite(leftMotorBackward, 0);
-      analogWrite(rightMotorForward, 0);
-      analogWrite(rightMotorBackward, 0);
-      //Serial.println("WTF HAPPENED?? NO MENU " + String(option));
-    }
-  }
+     
   
 }
-*/
 
 
+/*
 void loop()
 {    
   double x,y,yawww;    
@@ -1874,43 +1388,6 @@ void loop()
   Serial.print("  yaw=");Serial.println(yawww);
   delay(1000);
 
-  // moveF(1);
-  // checkDiagonalEdges();
-  // // delay(100);
-  // if(edgeRight())
-  // {
-  //   Serial.println("Right edge detected!");
-  //   // analogWrite(leftMotorForward, 100);
-  //   // analogWrite(leftMotorBackward, 100);
-  //   // analogWrite(rightMotorForward, 100);
-  //   // analogWrite(rightMotorBackward, 100);
-  //   // delay(1000);
-  //   analogWrite(leftMotorForward, 70);
-  //   analogWrite(leftMotorBackward, -70);
-  //   analogWrite(rightMotorForward, 70);
-  //   analogWrite(rightMotorBackward, -70);
-  //   delay(500);
-  //   turn(90);
-  //   moveF(1);
-  //   delay(1000);
-  // }
-  // if(edgeLeft())
-  // {
-  //   Serial.println("Left edge detected!");
-  //   analogWrite(leftMotorForward, 100);
-  //   analogWrite(leftMotorBackward, 100);
-  //   analogWrite(rightMotorForward, 100);
-  //   analogWrite(rightMotorBackward, 100);
-  //   delay(1000);
-  // }
-  
-  // else
-  // {
-  //   analogWrite(leftMotorForward, 70);
-  //   analogWrite(leftMotorBackward, -70);
-  //   analogWrite(rightMotorForward, 70);
-  //   analogWrite(rightMotorBackward, -70);
-  // }
   // for(int i=0;i<4;i++)
   // {
   //   Serial.print(irToDist(readings[i],i));Serial.print("  ");
@@ -1926,10 +1403,6 @@ void loop()
   // moveF(1);
   // turn(90);
   // moveF(1);
-
-  // Logln("first square!");
-  // delay(500);
-  // ekfUpdate();
 
   // Serial.print("x=");Serial.print(xPosition);
   // Serial.print("  y=");Serial.print(yPosition);
@@ -1947,7 +1420,6 @@ void loop()
   // moveF(1);
   // turn(-90);
   // moveF(1);
-  // Logln("second square!");
   // delay(500);
   // for(auto i : readings)
   // {
@@ -1959,12 +1431,5 @@ void loop()
   // Serial.print("    yaw: ");
   // Serial.println(yaw);
   // delay(5);
-  
-  // checkDiagonalEdges();
-  // if(edgeLeft()) {Serial.println("EDGE LEFT");delay(2000);}
-  // if(edgeRight()) {Serial.println("EDGE RIGHT");delay(2000);}
-  // if(frontEmergency()) {Serial.println("FRONT");delay(2000);}
-  // if(wallLeft()) {Serial.println("WALL LEFT");delay(2000);}
-  // if(wallRight()) {Serial.println("WALL RIGHT");delay(2000);}
 
-}
+}*/
