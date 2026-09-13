@@ -36,8 +36,8 @@ inline double calculateDistance(double x, double y);
 inline double ekfCalculateDistance(double x, double y);
 
 
-#define MAX_H 6 //18
-#define MAX_W 6 //18
+#define MAX_H 18 //18
+#define MAX_W 18 //18
 #define QUEUE_MAX (MAX_H * MAX_W)
 
 // struct queue;
@@ -93,18 +93,18 @@ queue c_q;
 #define ticksperlafa 1400
 #define circumference 10.681
 #define distance_between_wheels 9
-#define PI 3.141592653589
+// #define PI 3.141592653589
 
 // right motor pins
-#define rightMotorForward 15
-#define rightMotorBackward 17
-RotaryEncoderPCNT rightEncoder(7, 8);
+#define rightMotorForward 18
+#define rightMotorBackward 19
+RotaryEncoderPCNT rightEncoder(12, 14);
 double previousRight;
 
 // left motor pins 17 15
-#define leftMotorForward 14
-#define leftMotorBackward 13
-RotaryEncoderPCNT leftEncoder(10, 9);  // 8 7
+#define leftMotorForward 23
+#define leftMotorBackward 5
+RotaryEncoderPCNT leftEncoder(27, 25);  // 8 7
 double previousLeft;
 
 
@@ -123,8 +123,8 @@ inline float getRawYaw();
 #define CALIB_DATA_ADDR    5           // actual calibProfile struct starts here 22 bytes
 #define CALIB_MAGIC        0x42        // if found then data is valid
 
-#define SCL_PIN            16         
-#define SDA_PIN            21  
+#define SCL_PIN            22       
+#define SDA_PIN            21
 #define yawJumpThresh  10         //--------------------------------------------------------------------------------------------->need to set this
 portMUX_TYPE yawMux = portMUX_INITIALIZER_UNLOCKED; 
 TaskHandle_t bnoOffsetTaskHandle = NULL;
@@ -148,8 +148,8 @@ struct IR {
 };
 
 IR front_ir = { 36, ADC1_0 };
-IR left_ir = { 35, ADC1_2 };
-IR right_ir = { 18, ADC1_3 };
+IR left_ir = { 32, ADC1_1 };
+IR right_ir = { 33, ADC1_2};
 
 std::array ir_array = { front_ir, left_ir, right_ir};
 int readings[3];
@@ -748,10 +748,11 @@ void ekfPredict(float dt) {
 
   float rightSpeed_raw = rightDist / dt;
   float leftSpeed_raw  = leftDist / dt;
-  float rightSpeed = rightVFilter.update(rightSpeed_raw);
-  float leftSpeed  = leftVFilter.update(leftSpeed_raw);
-
-  float v = (rightSpeed + leftSpeed) / 2.0f;
+  // float rightSpeed = rightVFilter.update(rightSpeed_raw);
+  // float leftSpeed  = leftVFilter.update(leftSpeed_raw);
+ 
+  // float v = (rightSpeed + leftSpeed) / 2.0f;
+  float v = (rightSpeed_raw + leftSpeed_raw) / 2.0f;
   // float omega = getRate();// degrees
   poseEkf.X(2,0) = getOrientationX();   
   poseEkf.P(2,2) = 0.0f;
@@ -987,7 +988,8 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
     //Serial.println(getLin());
   }
 
-  Logln("Done moveF");
+  // Logln("Done moveF");
+  Serial.println("Done moveF");
   //   //Serial.println(calculateDistance(startX,startY));
   //Serial.println(errorL);
 
