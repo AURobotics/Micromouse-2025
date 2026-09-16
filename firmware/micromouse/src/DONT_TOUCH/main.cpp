@@ -96,15 +96,15 @@ queue c_q;
 // #define PI 3.141592653589
 
 // right motor pins
-#define rightMotorForward 22
-#define rightMotorBackward 23
-RotaryEncoderPCNT rightEncoder(15, 6);
+#define rightMotorForward 34
+#define rightMotorBackward 14
+RotaryEncoderPCNT rightEncoder(29, 5);
 double previousRight;
 
 // left motor pins 17 15
-#define leftMotorForward 24
-#define leftMotorBackward 25
-RotaryEncoderPCNT leftEncoder(26, 27);  // 8 7
+#define leftMotorForward 35
+#define leftMotorBackward 33
+RotaryEncoderPCNT leftEncoder(27, 26);  // 8 7
 double previousLeft;
 
 
@@ -1169,15 +1169,15 @@ void setup() {
 
   // EEPROM.begin(EEPROM_SIZE);  // Allocate 512 bytes for EEPROM emulation
   
-  // pinMode(leftMotorForward, OUTPUT);
-  // pinMode(leftMotorBackward, OUTPUT);
-  // pinMode(rightMotorForward, OUTPUT);
-  // pinMode(rightMotorBackward, OUTPUT);
+  pinMode(leftMotorForward, OUTPUT);
+  pinMode(leftMotorBackward, OUTPUT);
+  pinMode(rightMotorForward, OUTPUT);
+  pinMode(rightMotorBackward, OUTPUT);
 
-  // analogWrite(leftMotorForward, 0);
-  // analogWrite(leftMotorBackward, 0);
-  // analogWrite(rightMotorForward, 0);
-  // analogWrite(rightMotorBackward, 0);
+  analogWrite(leftMotorForward, 0);
+  analogWrite(leftMotorBackward, 0);
+  analogWrite(rightMotorForward, 0);
+  analogWrite(rightMotorBackward, 0);
 
   //delay(5000);
 
@@ -1256,6 +1256,12 @@ void setup() {
 }
 
 void loop() {
+  
+  analogWrite(leftMotorForward, 200);
+  analogWrite(leftMotorBackward, 0);
+  analogWrite(rightMotorForward, 200);
+  analogWrite(rightMotorBackward, 0);
+  
   // vec_3 euler = bno.euler();
   // Serial.print(euler.x());
   // Serial.print(" ");
