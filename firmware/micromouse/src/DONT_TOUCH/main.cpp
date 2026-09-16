@@ -96,15 +96,15 @@ queue c_q;
 // #define PI 3.141592653589
 
 // right motor pins
-#define rightMotorForward 18
-#define rightMotorBackward 19
-RotaryEncoderPCNT rightEncoder(12, 14);
+#define rightMotorForward 22
+#define rightMotorBackward 23
+RotaryEncoderPCNT rightEncoder(15, 6);
 double previousRight;
 
 // left motor pins 17 15
-#define leftMotorForward 23
-#define leftMotorBackward 5
-RotaryEncoderPCNT leftEncoder(27, 25);  // 8 7
+#define leftMotorForward 24
+#define leftMotorBackward 25
+RotaryEncoderPCNT leftEncoder(26, 27);  // 8 7
 double previousLeft;
 
 
@@ -132,8 +132,8 @@ SemaphoreHandle_t bnoMutex;
 
 imu bno(SCL_PIN,SDA_PIN,I2C_NUM_0, 0x29);
 
-constexpr uint8_t ADC1_0 = 1;
-constexpr uint8_t ADC1_1 = 2;
+constexpr uint8_t ADC1_0 = 2;
+constexpr uint8_t ADC1_1 = 4;
 constexpr uint8_t ADC1_2 = 3;
 
 //TODO
@@ -147,9 +147,9 @@ struct IR {
   uint8_t echo_pin;
 };
 
-IR front_ir = { 36, ADC1_0 };
-IR left_ir = { 32, ADC1_1 };
-IR right_ir = { 33, ADC1_2};
+IR front_ir = { 35, ADC1_0 };
+IR left_ir = { 34, ADC1_1 };
+IR right_ir = { 36, ADC1_2};
 
 std::array ir_array = { front_ir, left_ir, right_ir};
 int readings[3];
@@ -1167,61 +1167,61 @@ void bnoOffsetTask(void *pv)
 
 void setup() {
 
-  EEPROM.begin(EEPROM_SIZE);  // Allocate 512 bytes for EEPROM emulation
+  // EEPROM.begin(EEPROM_SIZE);  // Allocate 512 bytes for EEPROM emulation
   
-  pinMode(leftMotorForward, OUTPUT);
-  pinMode(leftMotorBackward, OUTPUT);
-  pinMode(rightMotorForward, OUTPUT);
-  pinMode(rightMotorBackward, OUTPUT);
+  // pinMode(leftMotorForward, OUTPUT);
+  // pinMode(leftMotorBackward, OUTPUT);
+  // pinMode(rightMotorForward, OUTPUT);
+  // pinMode(rightMotorBackward, OUTPUT);
 
-  analogWrite(leftMotorForward, 0);
-  analogWrite(leftMotorBackward, 0);
-  analogWrite(rightMotorForward, 0);
-  analogWrite(rightMotorBackward, 0);
+  // analogWrite(leftMotorForward, 0);
+  // analogWrite(leftMotorBackward, 0);
+  // analogWrite(rightMotorForward, 0);
+  // analogWrite(rightMotorBackward, 0);
 
   //delay(5000);
 
   Serial.begin(115200);
-  initialise(c_q, MAX_H * MAX_W);  //queue initialisation for storing row and coloumn
-  initialise(r_q, MAX_H * MAX_W);
-  update_mms_maze();
+  // initialise(c_q, MAX_H * MAX_W);  //queue initialisation for storing row and coloumn
+  // initialise(r_q, MAX_H * MAX_W);
+  // update_mms_maze();
 
-  delay(1000);
-  Serial.println(esp_reset_reason());
+  // delay(1000);
+  Serial.println("hi");
 
   //BNO
-  bno.init();
-  delay(50);
-  if(bno.isConnected())
-    Serial.println("BNO Connected yayy");
-  else
-  {
-    Serial.println("lol no BNO detected!");
-    delay(50000);
-  }
-  delay(10);
-  Calibration_t s{};
-  bno.calibration_status(s);
-  Serial.print("pre-load calib: ");
-  Serial.print(s.sys); Serial.print("/");
-  Serial.print(s.gyro); Serial.print("/");
-  Serial.println(s.accel);
+  // bno.init();
+  // delay(50);
+  // if(bno.isConnected())
+  //   Serial.println("BNO Connected yayy");
+  // else
+  // {
+  //   Serial.println("lol no BNO detected!");
+  //   // delay(50000);
+  // }
+  // delay(10);
+  // Calibration_t s{};
+  // bno.calibration_status(s);
+  // Serial.print("pre-load calib: ");
+  // Serial.print(s.sys); Serial.print("/");
+  // Serial.print(s.gyro); Serial.print("/");
+  // Serial.println(s.accel);
 
-  if(loadBnoCalibration(bno) == 0)
-  {
-    Serial.println("oops No bno offsets to load :(");
-    calibrateBnoAndSave(bno);//TODO: calibration using button mayenfa3sh nedkhol el mosab2a keda what if fy el round karar ye3ml calibration
-    delay(200000);
-  }
-  else
-  {
-    Serial.println("Calibration offsets loaded :)");
-    bno.calibration_status(s);
-    Serial.print("post-load calib: ");
-    Serial.print(s.sys); Serial.print("/");
-    Serial.print(s.gyro); Serial.print("/");
-    Serial.println(s.accel); 
-  }
+  // if(loadBnoCalibration(bno) == 0)
+  // {
+  //   Serial.println("oops No bno offsets to load :(");
+  //   calibrateBnoAndSave(bno);//TODO: calibration using button mayenfa3sh nedkhol el mosab2a keda what if fy el round karar ye3ml calibration
+  //   delay(200000);
+  // }
+  // else
+  // {
+  //   Serial.println("Calibration offsets loaded :)");
+  //   bno.calibration_status(s);
+  //   Serial.print("post-load calib: ");
+  //   Serial.print(s.sys); Serial.print("/");
+  //   Serial.print(s.gyro); Serial.print("/");
+  //   Serial.println(s.accel); 
+  // }
 
   // bno.set_mode(operation_mode::IMU);
   // delay(10);
@@ -1229,21 +1229,21 @@ void setup() {
   // bno.read_register(imu_registers::mode::OPR_MODE,buf,1);
   // Serial.print("mode: ");Serial.println(buf[0],HEX);
 
-  delay(2000);
-  bnoMutex = xSemaphoreCreateMutex();
-  xTaskCreate(bnoOffsetTask, "bnoOffsetTask", 2048, NULL, 1, &bnoOffsetTaskHandle);
+  // delay(2000);
+  // bnoMutex = xSemaphoreCreateMutex();
+  // xTaskCreate(bnoOffsetTask, "bnoOffsetTask", 2048, NULL, 1, &bnoOffsetTaskHandle);
   
-  setupIR();
+  // setupIR();
   
-  interTimer = millis();
+  // interTimer = millis();
   
-  leftEncoder.setPosition(0);
-  rightEncoder.setPosition(0);
+  // leftEncoder.setPosition(0);
+  // rightEncoder.setPosition(0);
   
-  poseEkf.Init();
-  poseMutex = xSemaphoreCreateMutex();
-  poseEkf.X(2,0) = theoreticalHeading = getOrientationX();
-  xTaskCreate(ekfTask, "ekfTask", 2048, NULL, 1, &ekfTaskHandle);
+  // poseEkf.Init();
+  // poseMutex = xSemaphoreCreateMutex();
+  // poseEkf.X(2,0) = theoreticalHeading = getOrientationX();
+  // xTaskCreate(ekfTask, "ekfTask", 2048, NULL, 1, &ekfTaskHandle);
 
 
   //IR calibration
@@ -1256,6 +1256,21 @@ void setup() {
 }
 
 void loop() {
+  // vec_3 euler = bno.euler();
+  // Serial.print(euler.x());
+  // Serial.print(" ");
+  // Serial.print(euler.y());
+  // Serial.print(" ");
+  // Serial.print(euler.z());
+  // Serial.println(" ");
+
+  // Serial.print(readings[0]);
+  // Serial.print(" ");
+  // Serial.print(readings[1]);
+  // Serial.print(" ");
+  // Serial.print(readings[2]);
+  // Serial.println(" ");
+
   // put your main code here, to run repeatedly:
   // moveF(1);
   //turn(90);
@@ -1351,25 +1366,26 @@ void loop() {
   // 2 --> left-hand
   
       //Serial.println("0 no menu");
-      delay(2000);
-      while (!menu) {
-        // server.handleClient();
-        Serial.println("0 while");
       // delay(2000);
-        flood();
-        Serial.println("done flood");
-        previous_run = current_run;
-        exploreToCenter();
-        Serial.println("done exploretocenter");
-        current_run = dis[16][1];
-        //if (current_run != 0 && current_run == previous_run) break;
-        flood(0);
-        Serial.println("done flood to begin");
-        exploreToStart();
-        Serial.println("done exploretostart");
-        // Log("done!!!! The best run is "+ current_run);
-      }
-     
+      // while (!menu) {
+      //   // server.handleClient();
+      //   Serial.println("0 while");
+      // // delay(2000);
+      //   flood();
+      //   Serial.println("done flood");
+      //   previous_run = current_run;
+      //   exploreToCenter();
+      //   Serial.println("done exploretocenter");
+      //   current_run = dis[16][1];
+      //   //if (current_run != 0 && current_run == previous_run) break;
+      //   flood(0);
+      //   Serial.println("done flood to begin");
+      //   exploreToStart();
+      //   Serial.println("done exploretostart");
+      //   // Log("done!!!! The best run is "+ current_run);
+      // }
+     Serial.println("الحمص الحمص");
+     delay(1000);
   
 }
 
