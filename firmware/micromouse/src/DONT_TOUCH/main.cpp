@@ -16,7 +16,7 @@ volatile bool menu = false;
 volatile char option;
 unsigned long interTimer;
 
-// inline void getPosition();  // odom
+inline void getPosition();  // odom
 inline float getOrientationX();
 inline float getRate();
 bool calibrateBnoAndSave(imu& bno);
@@ -98,13 +98,13 @@ queue c_q;
 // right motor pins
 #define rightMotorForward 34
 #define rightMotorBackward 14
-RotaryEncoderPCNT rightEncoder(29, 5);
+RotaryEncoderPCNT rightEncoder(4, 17);
 double previousRight;
 
 // left motor pins 17 15
-#define leftMotorForward 35
-#define leftMotorBackward 33
-RotaryEncoderPCNT leftEncoder(27, 26);  // 8 7
+#define leftMotorForward 33
+#define leftMotorBackward 35
+RotaryEncoderPCNT leftEncoder(23, 5);  // 8 7
 double previousLeft;
 
 
@@ -123,8 +123,8 @@ inline float getRawYaw();
 #define CALIB_DATA_ADDR    5           // actual calibProfile struct starts here 22 bytes
 #define CALIB_MAGIC        0x42        // if found then data is valid
 
-#define SCL_PIN            22       
-#define SDA_PIN            21
+#define SCL_PIN            21       
+#define SDA_PIN            22
 #define yawJumpThresh  10         //--------------------------------------------------------------------------------------------->need to set this
 portMUX_TYPE yawMux = portMUX_INITIALIZER_UNLOCKED; 
 TaskHandle_t bnoOffsetTaskHandle = NULL;
@@ -132,9 +132,9 @@ SemaphoreHandle_t bnoMutex;
 
 imu bno(SCL_PIN,SDA_PIN,I2C_NUM_0, 0x29);
 
-constexpr uint8_t ADC1_0 = 2;
-constexpr uint8_t ADC1_1 = 4;
-constexpr uint8_t ADC1_2 = 3;
+constexpr uint8_t ADC2_0 = 27;
+constexpr uint8_t ADC1_1 = 32;
+constexpr uint8_t ADC2_2 = 25;
 
 //TODO
 int frontThresh = 100;
@@ -147,9 +147,9 @@ struct IR {
   uint8_t echo_pin;
 };
 
-IR front_ir = { 35, ADC1_0 };
-IR left_ir = { 34, ADC1_1 };
-IR right_ir = { 36, ADC1_2};
+IR front_ir = { 18, ADC2_0 };
+IR left_ir = { 26, ADC1_1 };
+IR right_ir = { 19, ADC2_2};
 
 std::array ir_array = { front_ir, left_ir, right_ir};
 int readings[3];
@@ -572,12 +572,16 @@ float irToDist(int reading,int sensor) {
 }
 
 int32_t readOneBurst() {
-  adc_continuous_start(adcHandle);
-  ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50)); 
+    esp_err_t startErr = adc_continuous_start(adcHandle);
+  if (startErr != ESP_OK) Serial.printf("start failed: %d\n", startErr);
+
+  BaseType_t got = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50));
+  if (!got) Serial.println("notify timeout - conv_done never fired");
 
   uint8_t buf[SOC_ADC_DIGI_RESULT_BYTES * SAMPLES_PER_BURST];
   uint32_t outLen = 0;
   esp_err_t readErr = adc_continuous_read(adcHandle, buf, sizeof(buf), &outLen, 0);
+  if (readErr != ESP_OK) Serial.printf("read failed: %d, outLen=%lu\n", readErr, outLen);
 
   int32_t sum = 0;
   int count = 0;
@@ -613,33 +617,41 @@ void configureChannel(uint8_t echo_pin) {
   adc_continuous_config(adcHandle, &cfg);
 }
 
+inline void READIRS() {
+  // implement reading irs
+
+  int i = 0;
+  for (const auto &[trig_pin, echo_pin] : ir_array) {
+    int lit_val = 0, dark_val = 0;
+    for (int j = 0; j <  5; j++) {
+      digitalWrite(trig_pin, LOW);
+      dark_val += analogRead(echo_pin);
+      // u_long a = micros();
+      digitalWrite(trig_pin, HIGH);
+      delayMicroseconds(50);
+      lit_val += analogRead(echo_pin);
+      digitalWrite(trig_pin, LOW);
+      //u_long b = micros();
+      //delay(100);
+    }
+    ////Serial.print(String((lit_val - dark_val) / 5) + " ");
+    readings[i] = (lit_val - dark_val) / 5;
+    
+    i++;
+  }
+  // Serial.print(readings[0]);
+  //   Serial.print(" ");Serial.print(readings[1]);
+  //   Serial.print(" ");Serial.println(readings[2]);
+  return;
+  ////Serial.println();
+}
+
 void irTask(void *pv) {
   while(1){
-    IR &s = ir_array[currentSensor];
-
-    if (!litPhase) {
-      configureChannel(s.echo_pin);      
-      digitalWrite(s.trig_pin, LOW);
-      darkVal = readOneBurst();
-      digitalWrite(s.trig_pin, HIGH);
-      litPhase = true;
-    } else {
-      int32_t litVal = readOneBurst();
-      digitalWrite(s.trig_pin, LOW);
-
-      xSemaphoreTake(readingsMutex, portMAX_DELAY);
-      readings[currentSensor] = litVal - darkVal;
-      xSemaphoreGive(readingsMutex);
-
-      currentSensor = (currentSensor + 1) % ir_array.size();
-      litPhase = false;
-    }
+    READIRS();
     vTaskDelay(1);
   }
 }
-
-
-
 
 void setupIR() {
   for (const auto &[trig_pin, echo_pin] : ir_array) {
@@ -647,17 +659,9 @@ void setupIR() {
     digitalWrite(trig_pin, LOW);
     pinMode(echo_pin,INPUT);
   }
-  adc_continuous_handle_cfg_t adc_config = {};
-  adc_config.max_store_buf_size = SAMPLES_PER_BURST * SOC_ADC_DIGI_RESULT_BYTES * 4;
-  adc_config.conv_frame_size = SAMPLES_PER_BURST * SOC_ADC_DIGI_RESULT_BYTES;
-  Serial.printf("new_handle: %d\n", adc_continuous_new_handle(&adc_config, &adcHandle));
-  
-  adc_continuous_evt_cbs_t cbs = { .on_conv_done = onConvDone };
-  adc_continuous_register_event_callbacks(adcHandle, &cbs, NULL);
 
   readingsMutex = xSemaphoreCreateMutex();
   configureChannel(ir_array[0].echo_pin);
-
   xTaskCreate(irTask, "irTask", 4096, NULL, 3, &irTaskHandle);
 }
 
@@ -688,103 +692,101 @@ bool wallLeft() {
 }
 
 
-class PoseEKF : public ekf {
-public:
-  PoseEKF() : ekf(3, 1) {} //3 states (x,y,theta)// 1 control v
+// class PoseEKF : public ekf {
+// public:
+//   PoseEKF() : ekf(3, 1) {} //3 states (x,y,theta)// 1 control v
 
-  void Init() override {
-    for (int i = 0; i < NUMX; i++)
-      for (int j = 0; j < NUMX; j++)
-        P(i, j) = (i == j) ? 0.1f : 0.0f;  
-    X(0,0) = 0; X(1,0) = 0; X(2,0) = 0;     
+//   void Init() override {
+//     for (int i = 0; i < NUMX; i++)
+//       for (int j = 0; j < NUMX; j++)
+//         P(i, j) = (i == j) ? 0.1f : 0.0f;  
+//     X(0,0) = 0; X(1,0) = 0; X(2,0) = 0;     
 
-    Q(0,0) = 0.02f; Q(0,1) = 0.0f;          
-    Q(1,0) = 0.0f;  Q(1,1) = 0.02f; //------------------------------------------------------------------------need to tune
-    Q(2,2) = 0.0f; 
-  }
+//     Q(0,0) = 0.02f; Q(0,1) = 0.0f;          
+//     Q(1,0) = 0.0f;  Q(1,1) = 0.02f; //------------------------------------------------------------------------need to tune
+//     Q(2,2) = 0.0f; 
+//   }
 
-  dspm::Mat StateXdot(dspm::Mat &x, float *u) override {
-    dspm::Mat xdot(3, 1);
-    float v = u[0];      
-    float thetaRad = x(2, 0) * PI / 180.0f; 
-    xdot(0,0) = v * sinf(thetaRad);
-    xdot(1,0) = v * cosf(thetaRad);
-    xdot(2,0) = 0.0f; // no gyro
-    return xdot;
-  }
+//   dspm::Mat StateXdot(dspm::Mat &x, float *u) override {
+//     dspm::Mat xdot(3, 1);
+//     float v = u[0];      
+//     float thetaRad = x(2, 0) * PI / 180.0f; 
+//     xdot(0,0) = v * sinf(thetaRad);
+//     xdot(1,0) = v * cosf(thetaRad);
+//     xdot(2,0) = 0.0f; // no gyro
+//     return xdot;
+//   }
 
-  void LinearizeFG(dspm::Mat &x, float *u) override {
-    float v = u[0];
-    float thetaRad = x(2, 0) * PI / 180.0f;
-    F(0,0)=0; F(0,1)=0; F(0,2)= v*cosf(thetaRad) * PI / 180.0f;  
-    F(1,0)=0; F(1,1)=0; F(1,2)=-v*sinf(thetaRad) * PI / 180.0f;
-    F(2,0)=0; F(2,1)=0; F(2,2)=0;
+//   void LinearizeFG(dspm::Mat &x, float *u) override {
+//     float v = u[0];
+//     float thetaRad = x(2, 0) * PI / 180.0f;
+//     F(0,0)=0; F(0,1)=0; F(0,2)= v*cosf(thetaRad) * PI / 180.0f;  
+//     F(1,0)=0; F(1,1)=0; F(1,2)=-v*sinf(thetaRad) * PI / 180.0f;
+//     F(2,0)=0; F(2,1)=0; F(2,2)=0;
 
-    G(0,0)=sinf(thetaRad);
-    G(1,0)=cosf(thetaRad);
-    G(2,0)=0;
-  }
-};
+//     G(0,0)=sinf(thetaRad);
+//     G(1,0)=cosf(thetaRad);
+//     G(2,0)=0;
+//   }
+// };
 
-PoseEKF poseEkf;
-TaskHandle_t ekfTaskHandle = NULL;
-SemaphoreHandle_t poseMutex;
+// PoseEKF poseEkf;
+// TaskHandle_t ekfTaskHandle = NULL;
+// SemaphoreHandle_t poseMutex;
 
-long ekfPrevRightTicks = 0;
-long ekfPrevLeftTicks = 0;
+// long ekfPrevRightTicks = 0;
+// long ekfPrevLeftTicks = 0;
 
-void ekfPredict(float dt) {
-  long rightPos = rightEncoder.position();
-  long leftPos  = leftEncoder.position();
+// void ekfPredict(float dt) {
+//   long rightPos = rightEncoder.position();
+//   long leftPos  = leftEncoder.position();
 
-  long rTicks = rightPos - ekfPrevRightTicks;
-  long lTicks = leftPos  - ekfPrevLeftTicks;
+//   long rTicks = rightPos - ekfPrevRightTicks;
+//   long lTicks = leftPos  - ekfPrevLeftTicks;
 
-  ekfPrevRightTicks = rightPos;
-  ekfPrevLeftTicks  = leftPos;
+//   ekfPrevRightTicks = rightPos;
+//   ekfPrevLeftTicks  = leftPos;
 
-  float rightDist = rTicks / (float)ticksperlafa * circumference;
-  float leftDist  = lTicks / (float)ticksperlafa * circumference;
+//   float rightDist = rTicks / (float)ticksperlafa * circumference;
+//   float leftDist  = lTicks / (float)ticksperlafa * circumference;
 
-  float rightSpeed_raw = rightDist / dt;
-  float leftSpeed_raw  = leftDist / dt;
-  // float rightSpeed = rightVFilter.update(rightSpeed_raw);
-  // float leftSpeed  = leftVFilter.update(leftSpeed_raw);
+//   float rightSpeed_raw = rightDist / dt;
+//   float leftSpeed_raw  = leftDist / dt;
+//   // float rightSpeed = rightVFilter.update(rightSpeed_raw);
+//   // float leftSpeed  = leftVFilter.update(leftSpeed_raw);
  
-  // float v = (rightSpeed + leftSpeed) / 2.0f;
-  float v = (rightSpeed_raw + leftSpeed_raw) / 2.0f;
-  // float omega = getRate();// degrees
-  poseEkf.X(2,0) = getOrientationX();   
-  poseEkf.P(2,2) = 0.0f;
-  poseEkf.P(0,2) = poseEkf.P(2,0) = 0.0f;
-  poseEkf.P(1,2) = poseEkf.P(2,1) = 0.0f;
+//   // float v = (rightSpeed + leftSpeed) / 2.0f;
+//   float v = (rightSpeed_raw + leftSpeed_raw) / 2.0f;
+//   // float omega = getRate();// degrees
+//   poseEkf.X(2,0) = getOrientationX();   
+//   poseEkf.P(2,2) = 0.0f;
+//   poseEkf.P(0,2) = poseEkf.P(2,0) = 0.0f;
+//   poseEkf.P(1,2) = poseEkf.P(2,1) = 0.0f;
 
-  float u[1] = { v };
-  poseEkf.Process(u, dt);
-}
+//   float u[1] = { v };
+//   poseEkf.Process(u, dt);
+// }
 
-void ekfTask(void *pvParameters) {
-  TickType_t lastWakeTime = xTaskGetTickCount();
-  const TickType_t period = pdMS_TO_TICKS(50);
+// void ekfTask(void *pvParameters) {
+//   TickType_t lastWakeTime = xTaskGetTickCount();
+//   const TickType_t period = pdMS_TO_TICKS(50);
 
   
-  for (;;) {
-    float dt = 20 / 1000.0f;
+//   for (;;) {
+//     float dt = 20 / 1000.0f;
 
-    if (xSemaphoreTake(poseMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
-      ekfPredict(dt);
-      xSemaphoreGive(poseMutex);
-    }
+//     if (xSemaphoreTake(poseMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+//       ekfPredict(dt);
+//       xSemaphoreGive(poseMutex);
+//     }
     
-    vTaskDelayUntil(&lastWakeTime, period);
-  }
-}
+//     vTaskDelayUntil(&lastWakeTime, period);
+//   }
+// }
 
 //1 4
 void turn(double angle) {
-  xSemaphoreTake(poseMutex, pdMS_TO_TICKS(5));
-  double currentAngle = poseEkf.X(2,0);
-  xSemaphoreGive(poseMutex);
+  float currentAngle = getOrientationX();
 
   double desiredAngle = currentAngle + angle;
   // desiredAngle = fmod(desiredAngle + 360.0, 360.0); 
@@ -806,11 +808,8 @@ void turn(double angle) {
   int counter = 0;
 
   while (abs(error) > 1 || fabs(getRate()) > 0.5) {
-    if(xSemaphoreTake(poseMutex, pdMS_TO_TICKS(5)) == true){
-      currentAngle = poseEkf.X(2,0);
-      xSemaphoreGive(poseMutex);
-    }
-    
+      currentAngle = getOrientationX();
+      
     error = angleDiff(currentAngle, desiredAngle);
 
     unsigned long now = millis();
@@ -854,7 +853,7 @@ void turn(double angle) {
       Serial.print("turning ");
       Serial.print(desiredAngle);
       Serial.print(" yaw =");
-      Serial.print(poseEkf.X(2,0));
+      Serial.print(getOrientationX());
       Serial.print(" error =");
       Serial.print(error);
       Serial.print(" speed =");
@@ -886,8 +885,8 @@ void turn(double angle) {
 bool moveF(double tiles = 16)           // if you want to move tile by tile use moveF(1), if you want continuous use moveF();
 {                                       // just need to add to make it stop using the irs
   double desiredDistance = tiles * 19.7;  // el tile el mafrood 18cm, bas we found it would move slightly less than what we wanted, fa we increased it
-
-  double startX = poseEkf.X(0,0), startY = poseEkf.X(1,0);
+  getPosition();
+  double startX = xPosition, startY = yPosition;
   double startYaw = theoreticalHeading;
 
   long startRight = rightEncoder.position();
@@ -897,10 +896,10 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
 
   rightEncoder.setPosition(0);
   leftEncoder.setPosition(0);
-  // previousLeft=0;
-  // previousRight=0;
-  ekfPrevRightTicks = 0; 
-  ekfPrevLeftTicks = 0;
+  previousLeft=0;
+  previousRight=0;
+  // ekfPrevRightTicks = 0; 
+  // ekfPrevLeftTicks = 0;
   // for the distance
   double errorL = desiredDistance - ekfCalculateDistance(startX, startY);
   double errorLPrev = errorL;
@@ -908,7 +907,8 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
   bool direction = (errorL >= 0 ? true : false);  // true -> forward, false -> backward
 
   // to keep moving staight
-  double errorA = angleDiff(poseEkf.X(2,0), startYaw);
+  getPosition();
+  double errorA = angleDiff(yaw, startYaw);
   double errorAPrev = errorA;
 
   //double errorTicks = 0;
@@ -947,8 +947,9 @@ bool moveF(double tiles = 16)           // if you want to move tile by tile use 
     //     integralval += kiTicks*(deltaTicks - errorTicksPrev)*(millis() - t) ;
     // speedTicks = KpTicks*deltaTicks + KdTicks * (deltaTicks - errorTicksPrev)/(millis() - t)  + integralval;
 
+    getPosition();
     errorL = desiredDistance - ekfCalculateDistance(startX, startY);
-    errorA = angleDiff(poseEkf.X(2,0), startYaw);
+    errorA = angleDiff(yaw, startYaw);
 
 
     speedl = Kpl * errorL + Kdl * (errorL - errorLPrev) / (millis() - t);
@@ -1029,7 +1030,7 @@ inline double calculateDistance(double x, double y) {
   return sqrt(pow(x - xPosition, 2) + pow(y - yPosition, 2));
 }
 inline double ekfCalculateDistance(double x, double y){
-  return sqrt(pow(x - poseEkf.X(0,0), 2) + pow(y - poseEkf.X(1,0), 2));
+  return sqrt(pow(x - yaw, 2) + pow(y - yaw, 2));
 }
 
 double angleDiff(double start, double goal) {
@@ -1141,27 +1142,30 @@ void bnoOffsetTask(void *pv)
   }
 }
 
-// inline void getPosition() {
-//   double leftRevolutions = 1.0 * leftEncoder.position() / ticksperlafa;
-//   double rightRevolutions = 1.0 * rightEncoder.position() / ticksperlafa;
+inline void getPosition() {
+  double leftRevolutions = 1.0 * leftEncoder.position() / ticksperlafa;
+  double rightRevolutions = 1.0 * rightEncoder.position() / ticksperlafa;
 
-//   double leftDistance = (leftRevolutions - previousLeft) * circumference;
-//   double rightDistance = (rightRevolutions - previousRight) * circumference;
-//   double distance = (leftDistance + rightDistance) / 2;
+  double leftDistance = (leftRevolutions - previousLeft) * circumference;
+  double rightDistance = (rightRevolutions - previousRight) * circumference;
+  double distance = (leftDistance + rightDistance) / 2;
 
-//   double encoderDelta = (rightDistance - leftDistance) / distance_between_wheels;  // won't use that , and this is in radian
-//   double bnoDelta = (getOrientationX() - yaw);
-//   double deltaAngle = bnoDelta;  // add the encoder delta to it if you want
+  double encoderDelta = (rightDistance - leftDistance) / distance_between_wheels;  // won't use that , and this is in radian
+  double bnoDelta = (getOrientationX() - yaw);
+  double deltaAngle = bnoDelta;  // add the encoder delta to it if you want
 
-//   yPosition += distance * cos((yaw + deltaAngle / 2) * PI / 180);
-//   xPosition += distance * sin((yaw + deltaAngle / 2) * PI / 180);
-//   //yaw += deltaAngle;  // or yaw = getOrientationX();
-//   yaw = getOrientationX();
-//   //yaw = (yaw+360)%360;
+  yPosition += distance * cos((yaw + deltaAngle / 2) * PI / 180);
+  xPosition += distance * sin((yaw + deltaAngle / 2) * PI / 180);
+  //yaw += deltaAngle;  // or yaw = getOrientationX();
+  yaw = getOrientationX();
+  //yaw = (yaw+360)%360;
 
-//   previousLeft = leftRevolutions;
-//   previousRight = rightRevolutions;
-// }
+  Serial.print(xPosition);Serial.print(" ");
+  Serial.print(yPosition);
+  Serial.printf("   leftPos=%ld rightPos=%ld\n", leftEncoder.position(), rightEncoder.position());
+  previousLeft = leftRevolutions;
+  previousRight = rightRevolutions;
+}
 
 
 
@@ -1182,36 +1186,37 @@ void setup() {
   //delay(5000);
 
   Serial.begin(115200);
-  // initialise(c_q, MAX_H * MAX_W);  //queue initialisation for storing row and coloumn
-  // initialise(r_q, MAX_H * MAX_W);
+  initialise(c_q, MAX_H * MAX_W);  //queue initialisation for storing row and coloumn
+  initialise(r_q, MAX_H * MAX_W);
   // update_mms_maze();
-
+  
   // delay(1000);
   Serial.println("hi");
-
+  delay(10);
+  Wire.begin(SDA_PIN, SCL_PIN);
   //BNO
-  // bno.init();
-  // delay(50);
-  // if(bno.isConnected())
-  //   Serial.println("BNO Connected yayy");
-  // else
-  // {
-  //   Serial.println("lol no BNO detected!");
-  //   // delay(50000);
-  // }
-  // delay(10);
-  // Calibration_t s{};
-  // bno.calibration_status(s);
-  // Serial.print("pre-load calib: ");
-  // Serial.print(s.sys); Serial.print("/");
-  // Serial.print(s.gyro); Serial.print("/");
-  // Serial.println(s.accel);
-
+  bno.init();
+  delay(50);
+  if(bno.isConnected())
+    Serial.println("BNO Connected yayy");
+  else
+  {
+    Serial.println("lol no BNO detected!");
+    // delay(50000);
+  }
+  delay(10);
+  Calibration_t s{};
+  bno.calibration_status(s);
+  Serial.print("pre-load calib: ");
+  Serial.print(s.sys); Serial.print("/");
+  Serial.print(s.gyro); Serial.print("/");
+  Serial.println(s.accel);
+  delay(5000);
   // if(loadBnoCalibration(bno) == 0)
   // {
   //   Serial.println("oops No bno offsets to load :(");
-  //   calibrateBnoAndSave(bno);//TODO: calibration using button mayenfa3sh nedkhol el mosab2a keda what if fy el round karar ye3ml calibration
-  //   delay(200000);
+  //   // calibrateBnoAndSave(bno);//TODO: calibration using button mayenfa3sh nedkhol el mosab2a keda what if fy el round karar ye3ml calibration
+  //   // delay(200000);
   // }
   // else
   // {
@@ -1229,11 +1234,12 @@ void setup() {
   // bno.read_register(imu_registers::mode::OPR_MODE,buf,1);
   // Serial.print("mode: ");Serial.println(buf[0],HEX);
 
-  // delay(2000);
-  // bnoMutex = xSemaphoreCreateMutex();
-  // xTaskCreate(bnoOffsetTask, "bnoOffsetTask", 2048, NULL, 1, &bnoOffsetTaskHandle);
+  delay(2000);
+  bnoMutex = xSemaphoreCreateMutex();
+  xTaskCreate(bnoOffsetTask, "bnoOffsetTask", 2048, NULL, 1, &bnoOffsetTaskHandle);
   
-  // setupIR();
+  setupIR();
+  delay(100);
   
   // interTimer = millis();
   
@@ -1249,7 +1255,7 @@ void setup() {
   //IR calibration
   // for(int i=1;i<4;i++)//starting from 1 cuz 0,1 calibrate ma3 ba3d
   //   IRCalibration(i);
-  // vTaskPrioritySet(NULL,3);//raises priority of void loop
+  vTaskPrioritySet(NULL,3);//raises priority of void loop
 
   delay(10);
   Serial.println("khalast setup");
@@ -1257,11 +1263,15 @@ void setup() {
 
 void loop() {
   
-  analogWrite(leftMotorForward, 200);
-  analogWrite(leftMotorBackward, 0);
-  analogWrite(rightMotorForward, 200);
-  analogWrite(rightMotorBackward, 0);
-  
+  // analogWrite(leftMotorForward, 0);
+  // analogWrite(leftMotorBackward, 200);
+  // analogWrite(rightMotorForward, 0);
+  // analogWrite(rightMotorBackward, 200);
+
+  // Serial.printf("A=%d B=%d\n", digitalRead(4), digitalRead(17));
+  getPosition();
+  Serial.println(yaw);
+  delay(10);
   // vec_3 euler = bno.euler();
   // Serial.print(euler.x());
   // Serial.print(" ");
@@ -1269,10 +1279,11 @@ void loop() {
   // Serial.print(" ");
   // Serial.print(euler.z());
   // Serial.println(" ");
+  // delay(50);
 
-  // Serial.print(readings[0]);
-  // Serial.print(" ");
-  // Serial.print(readings[1]);
+  // xSemaphoreTake(readingsMutex, portMAX_DELAY);    
+  // Serial.printf(" %d %d\n", readings[0], readings[1]);
+  // xSemaphoreGive(readingsMutex);
   // Serial.print(" ");
   // Serial.print(readings[2]);
   // Serial.println(" ");
@@ -1390,8 +1401,8 @@ void loop() {
       //   Serial.println("done exploretostart");
       //   // Log("done!!!! The best run is "+ current_run);
       // }
-     Serial.println("الحمص الحمص");
-     delay(1000);
+    //  Serial.println("الحمص الحمص");
+    //  delay(1000);
   
 }
 
